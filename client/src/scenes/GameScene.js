@@ -194,292 +194,861 @@ export default class GameScene extends Phaser.Scene {
     const innerL = this.pipeInnerLeft  + 6;
     const innerR = this.pipeInnerRight - 6;
 
-    // Weighted type selection
-    const roll = Phaser.Math.Between(0, 99);
-    const type = roll < 22 ? 0    // water drop
-               : roll < 38 ? 1    // bubble
-               : roll < 50 ? 2    // web fragment
-               : roll < 62 ? 3    // rust/grey flake
-               : roll < 70 ? 4    // quarter
-               : roll < 77 ? 5    // chewed gum (falling piece)
-               : roll < 84 ? 6    // fly
-               : roll < 89 ? 7    // toilet paper
-               : roll < 93 ? 8    // toothbrush tip
-               : roll < 96 ? 9    // hair strand
-               : 10;              // tooth
+    // Weighted type selection (roll 0-119)
+    const roll = Phaser.Math.Between(0, 119);
+    const type = roll < 16  ? 0   // water drop
+               : roll < 28  ? 1   // bubble
+               : roll < 38  ? 2   // web thread
+               : roll < 48  ? 3   // rust flake
+               : roll < 55  ? 4   // coin (3D flip)
+               : roll < 62  ? 5   // chewing gum
+               : roll < 70  ? 6   // fly
+               : roll < 76  ? 7   // toilet paper wad
+               : roll < 82  ? 8   // toothbrush tip (ricochet)
+               : roll < 87  ? 9   // hair strand (wriggles)
+               : roll < 92  ? 10  // tooth (bounces)
+               : roll < 97  ? 11  // cockroach (wall crawler)
+               : roll < 101 ? 12  // soap bubble (iridescent)
+               : roll < 105 ? 13  // shampoo blob
+               : roll < 108 ? 14  // band-aid
+               : roll < 111 ? 15  // earring
+               : roll < 114 ? 16  // centipede (wall crawler)
+               : roll < 116 ? 17  // contact lens
+               : roll < 118 ? 18  // cigarette butt
+               : 19;              // matchstick
 
     const x = Phaser.Math.Between(innerL, innerR);
 
     if (type === 0) {
-      // ── Water drop ──────────────────────────────────────────────────────
-      const y = camera.scrollY - Phaser.Math.Between(10, 60);
+      // ── Water drop — wobbles sideways mid-fall, splats on landing ──
+      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
       const drip = this.add.graphics().setDepth(4);
-      drip.x = x; drip.y = y;
-      drip.fillStyle(0x4488aa, 0.7); drip.fillEllipse(0, 0, 5, 11);
+      drip.x = x; drip.y = startY;
+      const fallDur = Phaser.Math.Between(800, 2000);
+      const targetY = camera.scrollY + height + 20;
+      const baseX = x;
       this.tweens.add({
-        targets: drip, y: camera.scrollY + height + 40,
-        duration: Phaser.Math.Between(700, 1800), ease: 'Power1',
+        targets: drip,
+        y: targetY,
+        duration: fallDur,
+        ease: 'Power1',
+        onUpdate: (tween) => {
+          const p = tween.progress;
+          const wobble = Math.sin(p * Math.PI * 6) * 4 * (1 - p);
+          drip.x = baseX + wobble;
+          drip.clear();
+          const stretch = 1 + (1 - p) * 0.5;
+          drip.fillStyle(0x4499bb, 0.75);
+          drip.fillEllipse(0, 0, 5, 11 * stretch);
+          drip.fillStyle(0x88ccee, 0.4);
+          drip.fillCircle(0, -3, 2);
+        },
         onComplete: () => {
-          drip.clear(); drip.fillStyle(0x4488aa, 0.25); drip.fillEllipse(0, 0, 16, 5);
-          this.tweens.add({ targets: drip, scaleX: 2, scaleY: 0, alpha: 0, duration: 200, onComplete: () => drip.destroy() });
+          drip.x = baseX; drip.y = targetY;
+          drip.clear();
+          drip.fillStyle(0x4499bb, 0.3);
+          drip.fillEllipse(0, 0, 18, 5);
+          this.tweens.add({ targets: drip, scaleX: 2.2, scaleY: 0, alpha: 0, duration: 220,
+            onComplete: () => drip.destroy() });
         },
       });
 
     } else if (type === 1) {
-      // ── Bubble ──────────────────────────────────────────────────────────
-      const y = camera.scrollY + height + Phaser.Math.Between(0, 40);
-      const r = Phaser.Math.Between(3, 9);
+      // ── Bubble — iridescent wobble shape, rises, glint highlight ──
+      const startY = camera.scrollY + height + Phaser.Math.Between(0, 50);
+      const r = Phaser.Math.Between(4, 11);
       const bub = this.add.graphics().setDepth(4);
-      bub.x = x; bub.y = y;
-      bub.lineStyle(1, 0x77aacc, 0.45); bub.strokeCircle(0, 0, r);
-      bub.fillStyle(0x77aacc, 0.08); bub.fillCircle(0, 0, r);
+      bub.x = x; bub.y = startY;
+      const iColors = [0x77aacc, 0xaa77cc, 0x77ccaa, 0xccaa77];
+      let bTick = 0;
+      const baseX = x;
+      const driftAmp = Phaser.Math.Between(10, 22);
       this.tweens.add({
-        targets: bub, y: camera.scrollY - 60, x: x + Phaser.Math.Between(-18, 18), alpha: 0,
-        duration: Phaser.Math.Between(1800, 3800), ease: 'Sine.easeIn',
+        targets: bub,
+        y: camera.scrollY - 60,
+        duration: Phaser.Math.Between(2200, 4200),
+        ease: 'Sine.easeIn',
+        onUpdate: () => {
+          bTick += 0.07;
+          bub.x = baseX + Math.sin(bTick) * driftAmp;
+          const col = iColors[Math.floor(bTick * 0.8) % iColors.length];
+          bub.clear();
+          const wr = r + Math.sin(bTick * 2.1) * 1.5;
+          const hr = r + Math.cos(bTick * 1.7) * 1.5;
+          bub.lineStyle(1.5, col, 0.55);
+          bub.fillStyle(col, 0.07);
+          bub.fillEllipse(0, 0, wr * 2, hr * 2);
+          bub.strokeEllipse(0, 0, wr * 2, hr * 2);
+          bub.fillStyle(0xffffff, 0.6);
+          bub.fillCircle(-r * 0.3, -r * 0.35, r * 0.2);
+        },
         onComplete: () => bub.destroy(),
       });
 
     } else if (type === 2) {
-      // ── Web thread fragment ──────────────────────────────────────────────
-      const y  = camera.scrollY - Phaser.Math.Between(10, 80);
-      const dx = Phaser.Math.Between(-30, 30);
-      const len = Phaser.Math.Between(18, 45);
+      // ── Web thread — oscillating pendulum sine drift ──
+      const startY = camera.scrollY - Phaser.Math.Between(10, 80);
+      const len = Phaser.Math.Between(20, 55);
       const web = this.add.graphics().setDepth(4);
-      web.x = x; web.y = y;
-      web.lineStyle(1, 0x888888, 0.3);
-      web.beginPath(); web.moveTo(0, 0); web.lineTo(dx * 0.4, len * 0.5); web.lineTo(dx, len); web.strokePath();
+      web.x = x; web.y = startY;
+      const baseX = x;
+      let wTick = 0;
+      const amp = Phaser.Math.FloatBetween(8, 20);
       this.tweens.add({
-        targets: web, y: camera.scrollY + height + 60, x: x + Phaser.Math.Between(-40, 40), alpha: 0,
-        duration: Phaser.Math.Between(2200, 4500), ease: 'Linear',
+        targets: web,
+        y: camera.scrollY + height + 70,
+        duration: Phaser.Math.Between(3000, 5500),
+        ease: 'Linear',
+        onUpdate: () => {
+          wTick += 0.04;
+          web.x = baseX + Math.sin(wTick) * amp;
+          web.clear();
+          web.lineStyle(1, 0x999999, 0.35);
+          web.beginPath();
+          web.moveTo(0, 0);
+          web.lineTo(Math.sin(wTick * 1.3) * 6, len * 0.33);
+          web.lineTo(Math.sin(wTick * 0.9 + 1) * 8, len * 0.66);
+          web.lineTo(Math.sin(wTick * 1.1 + 2) * 4, len);
+          web.strokePath();
+          web.fillStyle(0xaaaaaa, 0.4);
+          web.fillCircle(0, 0, 1.5);
+        },
         onComplete: () => web.destroy(),
       });
 
     } else if (type === 3) {
-      // ── Rust/concrete flake ──────────────────────────────────────────────
-      const y  = camera.scrollY - Phaser.Math.Between(5, 50);
-      const sz = Phaser.Math.FloatBetween(1.5, 5);
-      const col = Phaser.Utils.Array.GetRandom([0x666666, 0x555555, 0x886644, 0x777777]);
+      // ── Rust flake — triangle shape, tumbles ──
+      const startY = camera.scrollY - Phaser.Math.Between(5, 50);
+      const sz = Phaser.Math.FloatBetween(2, 6);
+      const col = Phaser.Utils.Array.GetRandom([0x996633, 0x774422, 0x886644, 0xaa8855, 0x665533]);
       const flake = this.add.graphics().setDepth(4);
-      flake.x = x; flake.y = y;
-      flake.fillStyle(col, 0.65); flake.fillRect(-sz / 2, -sz / 2, sz, sz);
+      flake.x = x; flake.y = startY;
+      let fTick = 0;
+      const drift = Phaser.Math.Between(-40, 40);
+      const baseX = x;
       this.tweens.add({
-        targets: flake, y: camera.scrollY + height + 50,
-        x: x + Phaser.Math.Between(-35, 35), angle: Phaser.Math.Between(-180, 180), alpha: 0,
-        duration: Phaser.Math.Between(1400, 3200), ease: 'Power1',
+        targets: flake,
+        y: camera.scrollY + height + 60,
+        duration: Phaser.Math.Between(1600, 3400),
+        ease: 'Power1',
+        onUpdate: (tween) => {
+          fTick += 0.12;
+          flake.x = baseX + drift * tween.progress;
+          flake.clear();
+          flake.fillStyle(col, 0.7);
+          const s = sz * (1 + Math.sin(fTick * 0.5) * 0.1);
+          flake.fillTriangle(-s, s, s, s, Math.sin(fTick) * s * 0.3, -s);
+          flake.lineStyle(0.5, 0xccaa88, 0.4);
+          flake.strokeTriangle(-s, s, s, s, Math.sin(fTick) * s * 0.3, -s);
+        },
         onComplete: () => flake.destroy(),
       });
 
     } else if (type === 4) {
-      // ── Quarter (coin) ───────────────────────────────────────────────────
-      const y = camera.scrollY - Phaser.Math.Between(20, 80);
+      // ── Coin — realistic 3D flip (scaleX cosine oscillation) ──
+      const startY = camera.scrollY - Phaser.Math.Between(20, 80);
       const coin = this.add.graphics().setDepth(4);
-      coin.x = x; coin.y = y;
-      coin.fillStyle(0xb8b8b8, 1); coin.fillEllipse(0, 0, 22, 22);
-      coin.fillStyle(0xd0d0d0, 1); coin.fillEllipse(-2, -2, 16, 16);
-      coin.lineStyle(1, 0x888888, 0.7); coin.strokeCircle(0, 0, 11);
-      coin.fillStyle(0xaaaaaa, 0.5); coin.fillEllipse(-1, 1, 8, 10);
-      coin.fillStyle(0xffffff, 0.5); coin.fillEllipse(-4, -4, 4, 3);
+      coin.x = x; coin.y = startY;
+      let cTick = 0;
+      const baseX = x;
+      const drift = Phaser.Math.Between(-30, 30);
+      const spinRate = Phaser.Math.FloatBetween(0.15, 0.28);
       this.tweens.add({
-        targets: coin, y: camera.scrollY + height + 60, x: x + Phaser.Math.Between(-25, 25),
-        angle: Phaser.Math.Between(360, 720), alpha: 0,
-        duration: Phaser.Math.Between(1200, 2800), ease: 'Power1',
+        targets: coin,
+        y: camera.scrollY + height + 70,
+        duration: Phaser.Math.Between(1400, 3000),
+        ease: 'Power1',
+        onUpdate: (tween) => {
+          cTick += spinRate;
+          coin.x = baseX + drift * tween.progress;
+          const flipX = Math.cos(cTick);
+          const absFlip = Math.abs(flipX);
+          coin.clear();
+          if (flipX >= 0) {
+            coin.fillStyle(0xc0c0c0, 1);
+            coin.fillEllipse(0, 0, 22 * absFlip, 22);
+            if (absFlip > 0.3) {
+              coin.fillStyle(0xe0e0e0, 1);
+              coin.fillEllipse(0, 0, 14 * absFlip, 14);
+              coin.lineStyle(1, 0x888888, 0.6);
+              coin.strokeEllipse(0, 0, 22 * absFlip, 22);
+            }
+          } else {
+            coin.fillStyle(0xaaaaaa, 1);
+            coin.fillEllipse(0, 0, 22 * absFlip, 22);
+            if (absFlip > 0.3) {
+              coin.lineStyle(1, 0x777777, 0.6);
+              coin.strokeEllipse(0, 0, 22 * absFlip, 22);
+            }
+          }
+          if (absFlip > 0.15) {
+            coin.fillStyle(0xffffff, 0.35 * absFlip);
+            coin.fillEllipse(-3 * flipX, -5, 5 * absFlip, 4);
+          }
+        },
         onComplete: () => coin.destroy(),
       });
 
     } else if (type === 5) {
-      // ── Chewed gum (falling piece) ───────────────────────────────────────
-      const y = camera.scrollY - Phaser.Math.Between(10, 60);
+      // ── Chewing gum — stretchy wobble with dangling thread ──
+      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
       const gum = this.add.graphics().setDepth(4);
-      gum.x = x; gum.y = y;
-      const c = Phaser.Utils.Array.GetRandom([0xdd88aa, 0xcc7799, 0xbbaa88, 0xaaaa99]);
-      gum.fillStyle(c, 0.85);
-      gum.fillEllipse(-4, 2, 16, 10); gum.fillEllipse(3, -3, 12, 8); gum.fillEllipse(-2, -2, 10, 12);
-      gum.lineStyle(1.5, c, 0.6); gum.beginPath(); gum.moveTo(0, 8); gum.lineTo(3, 18); gum.strokePath();
+      gum.x = x; gum.y = startY;
+      const col = Phaser.Utils.Array.GetRandom([0xdd88aa, 0xcc7799, 0xccaacc, 0xddaa88]);
+      let gTick = 0;
+      const baseX = x;
       this.tweens.add({
-        targets: gum, y: camera.scrollY + height + 40, x: x + Phaser.Math.Between(-8, 8), alpha: 0,
-        duration: Phaser.Math.Between(2500, 4500), ease: 'Linear',
+        targets: gum,
+        y: camera.scrollY + height + 50,
+        duration: Phaser.Math.Between(2800, 5000),
+        ease: 'Linear',
+        onUpdate: () => {
+          gTick += 0.08;
+          gum.x = baseX + Math.sin(gTick * 0.7) * 6;
+          gum.clear();
+          const sqX = 1 + Math.sin(gTick) * 0.15;
+          const sqY = 1 - Math.sin(gTick) * 0.08;
+          gum.fillStyle(col, 0.88);
+          gum.fillEllipse(-3, 0, 16 * sqX, 10 * sqY);
+          gum.fillEllipse(4, -4, 12 * sqX, 9 * sqY);
+          gum.fillEllipse(-1, 4, 10 * sqX, 8 * sqY);
+          const threadLen = 14 + Math.sin(gTick * 1.3) * 4;
+          gum.lineStyle(1.5, col, 0.65);
+          gum.beginPath();
+          gum.moveTo(2, 8);
+          gum.lineTo(2 + Math.sin(gTick * 2) * 4, 8 + threadLen);
+          gum.strokePath();
+        },
         onComplete: () => gum.destroy(),
       });
 
     } else if (type === 6) {
-      // ── Fly ─────────────────────────────────────────────────────────────
-      const startY = camera.scrollY + Phaser.Math.Between(50, height - 50);
+      // ── Fly — multi-frequency X drift + wing flap animation ──
+      const startY = camera.scrollY + Phaser.Math.Between(50, height - 60);
       const fly = this.add.graphics().setDepth(5);
       fly.x = x; fly.y = startY;
-      const drawFly = () => {
-        fly.clear();
-        fly.fillStyle(0x111111, 1); fly.fillEllipse(0, 0, 10, 6);
-        fly.fillStyle(0xaaddee, 0.28); fly.fillEllipse(-6, -3, 10, 6);
-        fly.fillStyle(0xaaddee, 0.28); fly.fillEllipse(6, -3, 10, 6);
-        fly.fillStyle(0xcc1100, 0.9); fly.fillCircle(-2, -2, 2); fly.fillCircle(2, -2, 2);
-      };
-      drawFly();
       const baseX = x;
-      let t = 0;
+      let flyTick = 0;
+      const flapRate = Phaser.Math.FloatBetween(0.35, 0.55);
+      const drift1 = Phaser.Math.FloatBetween(20, 38);
+      const drift2 = Phaser.Math.FloatBetween(8, 16);
+      const phase2 = Phaser.Math.FloatBetween(0, Math.PI);
       this.tweens.add({
-        targets: fly, y: camera.scrollY - 40,
-        duration: Phaser.Math.Between(2800, 5000), ease: 'Linear',
-        onUpdate: () => { t += 0.18; fly.x = baseX + Math.sin(t) * 28 + Math.sin(t * 2.3) * 12; drawFly(); },
+        targets: fly,
+        y: camera.scrollY - 50,
+        duration: Phaser.Math.Between(3000, 5500),
+        ease: 'Linear',
+        onUpdate: () => {
+          flyTick += 0.18;
+          fly.x = baseX + Math.sin(flyTick) * drift1 + Math.sin(flyTick * 2.3 + phase2) * drift2;
+          fly.clear();
+          fly.fillStyle(0x111111, 1);
+          fly.fillEllipse(0, 0, 10, 6);
+          fly.fillStyle(0x222222, 1);
+          fly.fillCircle(0, -4, 3);
+          fly.fillStyle(0xcc1100, 0.9);
+          fly.fillCircle(-2, -4, 1.5);
+          fly.fillCircle(2, -4, 1.5);
+          const flapY = Math.abs(Math.sin(flyTick * flapRate * Math.PI * 2));
+          fly.fillStyle(0xaaddee, 0.3 + flapY * 0.15);
+          fly.fillEllipse(-7, -2 - flapY * 3, 12, 5 + flapY * 4);
+          fly.fillEllipse(7, -2 - flapY * 3, 12, 5 + flapY * 4);
+          fly.lineStyle(0.8, 0x333333, 0.6);
+          for (let li = -1; li <= 1; li += 1) {
+            fly.beginPath(); fly.moveTo(li * 3, 2); fly.lineTo(li * 3 - 5, 6 + Math.sin(flyTick + li) * 2); fly.strokePath();
+            fly.beginPath(); fly.moveTo(li * 3, 2); fly.lineTo(li * 3 + 5, 6 + Math.sin(flyTick + li + 1) * 2); fly.strokePath();
+          }
+        },
         onComplete: () => fly.destroy(),
       });
 
     } else if (type === 7) {
-      // ── Toilet paper wad ─────────────────────────────────────────────────
-      const y = camera.scrollY - Phaser.Math.Between(20, 80);
+      // ── Toilet paper wad — unraveling strip grows over time ──
+      const startY = camera.scrollY - Phaser.Math.Between(20, 80);
       const tp = this.add.graphics().setDepth(4);
-      tp.x = x; tp.y = y;
-      tp.fillStyle(0xf0ece0, 0.9); tp.fillEllipse(0, 0, 22, 16);
-      tp.fillStyle(0xe8e4d8, 0.85); tp.fillEllipse(-6, 4, 16, 12);
-      tp.fillStyle(0xf4f0e4, 0.9); tp.fillEllipse(6, -3, 14, 11);
-      tp.lineStyle(0.5, 0xccccbb, 0.4);
-      tp.beginPath(); tp.moveTo(-8, 0); tp.lineTo(8, 2); tp.strokePath();
-      tp.beginPath(); tp.moveTo(-5, 5); tp.lineTo(7, 4); tp.strokePath();
+      tp.x = x; tp.y = startY;
+      let tpTick = 0;
+      const baseX = x;
+      const drift = Phaser.Math.Between(-15, 15);
       this.tweens.add({
-        targets: tp, y: camera.scrollY + height + 50, x: x + Phaser.Math.Between(-12, 12),
-        angle: Phaser.Math.Between(-30, 30), alpha: 0,
-        duration: Phaser.Math.Between(3000, 5500), ease: 'Linear',
+        targets: tp,
+        y: camera.scrollY + height + 60,
+        duration: Phaser.Math.Between(3500, 6000),
+        ease: 'Linear',
+        onUpdate: (tween) => {
+          tpTick += 0.06;
+          tp.x = baseX + drift * tween.progress;
+          tp.clear();
+          tp.fillStyle(0xf0ece0, 0.92);
+          tp.fillEllipse(0, 0, 22, 16);
+          tp.fillStyle(0xe8e4d8, 0.88);
+          tp.fillEllipse(-6, 4, 16, 12);
+          const stripLen = tween.progress * 50;
+          if (stripLen > 2) {
+            tp.lineStyle(5, 0xf4f0e4, 0.85);
+            tp.beginPath();
+            tp.moveTo(5, 6);
+            for (let si = 0; si <= 20; si++) {
+              const st = si / 20;
+              const py = 6 + st * stripLen;
+              const px = 5 + Math.sin(st * 3 * Math.PI * 2 + tpTick) * 5;
+              tp.lineTo(px, py);
+            }
+            tp.strokePath();
+          }
+          tp.lineStyle(0.5, 0xccccbb, 0.35);
+          tp.beginPath(); tp.moveTo(-8, 0); tp.lineTo(8, 2); tp.strokePath();
+        },
         onComplete: () => tp.destroy(),
       });
 
     } else if (type === 8) {
-      // ── Toothbrush tip ───────────────────────────────────────────────────
-      const y = camera.scrollY - Phaser.Math.Between(10, 50);
+      // ── Toothbrush tip — chain tween: ricochets off pipe wall mid-fall ──
+      const startY = camera.scrollY - Phaser.Math.Between(10, 50);
       const tb = this.add.graphics().setDepth(4);
-      tb.x = x; tb.y = y;
+      tb.x = x; tb.y = startY;
       const hcol = Phaser.Utils.Array.GetRandom([0x4488cc, 0xcc4488, 0x44cc88, 0xcc8844]);
-      tb.fillStyle(hcol, 0.9); tb.fillRect(-4, -2, 8, 20);
-      tb.fillStyle(0xeeeeee, 1); tb.fillRect(-5, -10, 10, 12);
-      tb.lineStyle(1, 0xdddddd, 0.7);
-      for (let bx = -4; bx <= 4; bx += 2) {
-        tb.beginPath(); tb.moveTo(bx, -10); tb.lineTo(bx, -16); tb.strokePath();
-      }
-      this.tweens.add({
-        targets: tb, y: camera.scrollY + height + 50, x: x + Phaser.Math.Between(-20, 20),
-        angle: Phaser.Math.Between(-45, 45), alpha: 0,
-        duration: Phaser.Math.Between(900, 2200), ease: 'Power2',
-        onComplete: () => tb.destroy(),
+      const drawTB = () => {
+        tb.clear();
+        tb.fillStyle(hcol, 0.9); tb.fillRect(-4, -2, 8, 22);
+        tb.fillStyle(0xeeeeee, 1); tb.fillRect(-5, -14, 10, 14);
+        tb.lineStyle(1, 0xdddddd, 0.7);
+        for (let bx = -4; bx <= 4; bx += 2) {
+          tb.beginPath(); tb.moveTo(bx, -14); tb.lineTo(bx, -20); tb.strokePath();
+        }
+      };
+      drawTB();
+      const midY = startY + Phaser.Math.Between(80, 160);
+      const bounceX = x < (innerL + innerR) / 2 ? innerR - 10 : innerL + 10;
+      this.tweens.chain({
+        targets: tb,
+        tweens: [
+          { x: bounceX, y: midY, duration: Phaser.Math.Between(300, 600), ease: 'Power1',
+            angle: Phaser.Math.Between(-30, 30), onUpdate: drawTB },
+          { x: x + Phaser.Math.Between(-25, 25), y: camera.scrollY + height + 60,
+            duration: Phaser.Math.Between(400, 800), ease: 'Power2',
+            angle: Phaser.Math.Between(60, 120), alpha: 0,
+            onUpdate: drawTB, onComplete: () => tb.destroy() },
+        ],
       });
 
     } else if (type === 9) {
-      // ── Hair strand ──────────────────────────────────────────────────────
-      const y  = camera.scrollY - Phaser.Math.Between(20, 80);
-      const len = Phaser.Math.Between(40, 110);
+      // ── Hair strand — wriggles with sine waves at different phases ──
+      const startY = camera.scrollY - Phaser.Math.Between(20, 80);
+      const len = Phaser.Math.Between(50, 120);
       const hair = this.add.graphics().setDepth(4);
-      hair.x = x; hair.y = y;
-      const hairCol = Phaser.Utils.Array.GetRandom([0x221a10, 0x443322, 0x888880, 0xeeeecc]);
-      hair.lineStyle(1, hairCol, 0.7);
-      // Wavy strand
-      hair.beginPath(); hair.moveTo(0, 0);
-      hair.lineTo(Phaser.Math.Between(-8, 8), len * 0.25);
-      hair.lineTo(Phaser.Math.Between(-8, 8), len * 0.5);
-      hair.lineTo(Phaser.Math.Between(-8, 8), len * 0.75);
-      hair.lineTo(Phaser.Math.Between(-6, 6), len);
-      hair.strokePath();
+      hair.x = x; hair.y = startY;
+      const hairCol = Phaser.Utils.Array.GetRandom([0x221a10, 0x443322, 0x888880, 0xeeeecc, 0x1a1a1a]);
+      const baseX = x;
+      let hTick = 0;
+      const drift = Phaser.Math.FloatBetween(-20, 20);
       this.tweens.add({
-        targets: hair, y: camera.scrollY + height + 60, x: x + Phaser.Math.Between(-20, 20), alpha: 0,
-        duration: Phaser.Math.Between(3500, 6000), ease: 'Linear',
+        targets: hair,
+        y: camera.scrollY + height + 70,
+        duration: Phaser.Math.Between(4000, 7000),
+        ease: 'Linear',
+        onUpdate: (tween) => {
+          hTick += 0.05;
+          hair.x = baseX + drift * tween.progress;
+          hair.clear();
+          hair.lineStyle(1, hairCol, 0.72);
+          const segs = 8;
+          hair.beginPath();
+          for (let hi = 0; hi <= segs; hi++) {
+            const py = (hi / segs) * len;
+            const px = Math.sin(hTick * 1.2 + hi * 0.9) * 9 + Math.sin(hTick * 0.7 + hi * 1.5) * 5;
+            if (hi === 0) hair.moveTo(px, py); else hair.lineTo(px, py);
+          }
+          hair.strokePath();
+        },
         onComplete: () => hair.destroy(),
       });
 
-    } else {
-      // ── Tooth ────────────────────────────────────────────────────────────
-      const y = camera.scrollY - Phaser.Math.Between(10, 60);
+    } else if (type === 10) {
+      // ── Tooth — chain tween: bounces off pipe wall ──
+      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
       const tooth = this.add.graphics().setDepth(4);
-      tooth.x = x; tooth.y = y;
-      // Crown (white oval)
-      tooth.fillStyle(0xf5f0e0, 1); tooth.fillEllipse(0, -4, 12, 14);
-      // Root (tapered below)
-      tooth.fillStyle(0xe8e0cc, 1); tooth.fillTriangle(-4, 2, 4, 2, 1, 14);
-      // Enamel lines
-      tooth.lineStyle(0.5, 0xddddcc, 0.6);
-      tooth.beginPath(); tooth.moveTo(-3, -6); tooth.lineTo(-3, 4); tooth.strokePath();
-      tooth.beginPath(); tooth.moveTo(3, -6);  tooth.lineTo(3, 4);  tooth.strokePath();
+      tooth.x = x; tooth.y = startY;
+      const drawTooth = () => {
+        tooth.clear();
+        tooth.fillStyle(0xf5f0e0, 1); tooth.fillEllipse(0, -4, 12, 14);
+        tooth.fillStyle(0xe8e0cc, 1); tooth.fillTriangle(-4, 2, 4, 2, 1, 14);
+        tooth.lineStyle(0.5, 0xddddcc, 0.6);
+        tooth.beginPath(); tooth.moveTo(-3, -6); tooth.lineTo(-3, 4); tooth.strokePath();
+        tooth.beginPath(); tooth.moveTo(3, -6); tooth.lineTo(3, 4); tooth.strokePath();
+      };
+      drawTooth();
+      const midY = startY + Phaser.Math.Between(60, 140);
+      const bounceX = x < (innerL + innerR) / 2 ? innerR - 15 : innerL + 15;
+      this.tweens.chain({
+        targets: tooth,
+        tweens: [
+          { x: bounceX, y: midY, angle: Phaser.Math.Between(-40, 40),
+            duration: Phaser.Math.Between(280, 500), ease: 'Power1', onUpdate: drawTooth },
+          { x: x + Phaser.Math.Between(-30, 30), y: camera.scrollY + height + 60,
+            angle: Phaser.Math.Between(-120, 120), alpha: 0,
+            duration: Phaser.Math.Between(350, 700), ease: 'Power2',
+            onUpdate: drawTooth, onComplete: () => tooth.destroy() },
+        ],
+      });
+
+    } else if (type === 11) {
+      // ── Cockroach — wall crawler, stop-start scurry (screen-space) ──
+      const onLeft = Phaser.Math.Between(0, 1) === 0;
+      const wallX = onLeft ? this.pipeInnerLeft + 8 : this.pipeInnerRight - 8;
+      const startY = Phaser.Math.Between(80, height - 80);
+      const roach = this.add.graphics().setScrollFactor(0).setDepth(5);
+      roach.x = wallX;
+      roach.y = startY;
+      let rLeg = 0;
+      const drawRoach = () => {
+        roach.clear();
+        roach.fillStyle(0x3a2200, 1);
+        roach.fillEllipse(0, 0, 14, 8);
+        roach.fillStyle(0x2a1800, 1);
+        roach.fillCircle(0, -5, 4);
+        roach.fillStyle(0xff4400, 0.8);
+        roach.fillCircle(-2, -6, 1.2);
+        roach.fillCircle(2, -6, 1.2);
+        roach.lineStyle(0.8, 0x5a3200, 0.9);
+        roach.beginPath(); roach.moveTo(-2, -8); roach.lineTo(-6 + Math.sin(rLeg) * 3, -16); roach.strokePath();
+        roach.beginPath(); roach.moveTo(2, -8); roach.lineTo(8 + Math.sin(rLeg + 1) * 3, -16); roach.strokePath();
+        roach.lineStyle(1, 0x4a2800, 0.85);
+        [-3, 0, 3].forEach((ly, ri) => {
+          roach.beginPath(); roach.moveTo(-6, ly); roach.lineTo(-6 - (Math.sin(rLeg + ri) > 0 ? 8 : 6), ly + 3); roach.strokePath();
+          roach.beginPath(); roach.moveTo(6, ly); roach.lineTo(6 + (Math.sin(rLeg + ri) > 0 ? 8 : 6), ly + 3); roach.strokePath();
+        });
+      };
+      let rAlive = true;
+      const roachStep = () => {
+        if (!roach.active || !rAlive) return;
+        const dist = Phaser.Math.Between(20, 55);
+        const dur  = Phaser.Math.Between(180, 380);
+        const pause = Phaser.Math.Between(100, 400);
+        this.tweens.add({
+          targets: roach,
+          y: roach.y + dist * (Phaser.Math.Between(0, 1) ? 1 : -1),
+          duration: dur, ease: 'Linear',
+          onUpdate: () => { rLeg += 0.25; drawRoach(); },
+          onComplete: () => {
+            this.time.delayedCall(pause, () => {
+              rLeg += 0.3; drawRoach();
+              if (rAlive && roach.active) roachStep();
+            });
+          },
+        });
+      };
+      drawRoach();
+      roachStep();
+      this.time.delayedCall(Phaser.Math.Between(5000, 9000), () => {
+        rAlive = false;
+        this.tweens.add({ targets: roach, alpha: 0, duration: 300, onComplete: () => roach.destroy() });
+      });
+
+    } else if (type === 12) {
+      // ── Soap bubble — iridescent multi-color shimmer, rises, pops with ring flash ──
+      const startY = camera.scrollY + height + Phaser.Math.Between(0, 50);
+      const r = Phaser.Math.Between(7, 16);
+      const sb = this.add.graphics().setDepth(4);
+      sb.x = x; sb.y = startY;
+      const baseX = x;
+      let sbTick = 0;
+      const sbColors = [0xff88aa, 0x88aaff, 0x88ffcc, 0xffcc88, 0xcc88ff];
       this.tweens.add({
-        targets: tooth, y: camera.scrollY + height + 50, x: x + Phaser.Math.Between(-18, 18),
-        angle: Phaser.Math.Between(-60, 60), alpha: 0,
-        duration: Phaser.Math.Between(1000, 2500), ease: 'Power2',
-        onComplete: () => tooth.destroy(),
+        targets: sb,
+        y: camera.scrollY - 80,
+        duration: Phaser.Math.Between(3000, 5500),
+        ease: 'Sine.easeIn',
+        onUpdate: () => {
+          sbTick += 0.06;
+          sb.x = baseX + Math.sin(sbTick * 0.8) * 18 + Math.sin(sbTick * 1.9) * 8;
+          const col1 = sbColors[Math.floor(sbTick * 0.5) % sbColors.length];
+          const col2 = sbColors[(Math.floor(sbTick * 0.5) + 2) % sbColors.length];
+          sb.clear();
+          sb.fillStyle(col1, 0.06); sb.fillCircle(0, 0, r);
+          sb.lineStyle(2, col1, 0.5); sb.strokeCircle(0, 0, r);
+          sb.lineStyle(1, col2, 0.35); sb.strokeCircle(0, 0, r - 1.5);
+          sb.fillStyle(col2, 0.12); sb.fillEllipse(r * 0.2, -r * 0.3, r * 0.8, r * 0.5);
+          sb.fillStyle(0xffffff, 0.75); sb.fillCircle(-r * 0.28, -r * 0.3, r * 0.18);
+          sb.fillStyle(0xffffff, 0.4); sb.fillCircle(r * 0.2, r * 0.25, r * 0.1);
+        },
+        onComplete: () => {
+          sb.clear();
+          sb.lineStyle(2, 0xffffff, 0.8); sb.strokeCircle(0, 0, r * 1.4);
+          this.tweens.add({ targets: sb, scaleX: 2, scaleY: 2, alpha: 0, duration: 180,
+            onComplete: () => sb.destroy() });
+        },
+      });
+
+    } else if (type === 13) {
+      // ── Shampoo blob — squish wobble, translucent colored teardrop ──
+      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
+      const col = Phaser.Utils.Array.GetRandom([0xeedd44, 0x44eecc, 0xff88cc, 0x88ccff, 0xaaff88]);
+      const shamp = this.add.graphics().setDepth(4);
+      shamp.x = x; shamp.y = startY;
+      let shTick = 0;
+      const baseX = x;
+      this.tweens.add({
+        targets: shamp,
+        y: camera.scrollY + height + 50,
+        duration: Phaser.Math.Between(2000, 4000),
+        ease: 'Power1',
+        onUpdate: () => {
+          shTick += 0.09;
+          shamp.x = baseX + Math.sin(shTick * 0.6) * 7;
+          shamp.clear();
+          const sqX = 1 + Math.sin(shTick) * 0.12;
+          const sqY = 1 - Math.sin(shTick) * 0.08;
+          shamp.fillStyle(col, 0.55);
+          shamp.fillEllipse(0, 0, 18 * sqX, 24 * sqY);
+          shamp.fillStyle(0xffffff, 0.3); shamp.fillEllipse(-3, -5, 6, 9);
+          shamp.fillStyle(col, 0.4); shamp.fillTriangle(-5, 8, 5, 8, 0, 18);
+        },
+        onComplete: () => shamp.destroy(),
+      });
+
+    } else if (type === 14) {
+      // ── Band-aid — flutter rotation as it falls ──
+      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
+      const ba = this.add.graphics().setDepth(4);
+      ba.x = x; ba.y = startY;
+      let baTick = 0;
+      const baseX = x;
+      const drift = Phaser.Math.Between(-30, 30);
+      this.tweens.add({
+        targets: ba,
+        y: camera.scrollY + height + 60,
+        duration: Phaser.Math.Between(2500, 4500),
+        ease: 'Linear',
+        onUpdate: (tween) => {
+          baTick += 0.1;
+          ba.x = baseX + drift * tween.progress;
+          ba.clear();
+          const flutter = Math.cos(baTick * 1.8);
+          const af = Math.abs(flutter);
+          ba.fillStyle(0xe8c9a0, 0.9); ba.fillRect(-18 * af, -5, 36 * af, 10);
+          if (af > 0.4) { ba.fillStyle(0xfff8ee, 0.95); ba.fillRect(-6 * af, -4, 12 * af, 8); }
+          ba.fillStyle(0xddbbaa, 0.6);
+          for (let px = -15; px <= 15; px += 5) { ba.fillCircle(px * af, 0, 0.8); }
+        },
+        onComplete: () => ba.destroy(),
+      });
+
+    } else if (type === 15) {
+      // ── Earring — sparkle dots pulse, hook + gem shape ──
+      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
+      const gemCol = Phaser.Utils.Array.GetRandom([0xff4488, 0x4488ff, 0x44ffcc, 0xffcc44, 0xcc44ff]);
+      const ear = this.add.graphics().setDepth(4);
+      ear.x = x; ear.y = startY;
+      let eTick = 0;
+      const baseX = x;
+      const drift = Phaser.Math.Between(-20, 20);
+      this.tweens.add({
+        targets: ear,
+        y: camera.scrollY + height + 60,
+        duration: Phaser.Math.Between(2000, 4000),
+        ease: 'Linear',
+        onUpdate: (tween) => {
+          eTick += 0.1;
+          ear.x = baseX + drift * tween.progress;
+          ear.clear();
+          ear.lineStyle(2, 0xdddddd, 0.9);
+          ear.beginPath(); ear.moveTo(0, -10); ear.lineTo(0, -2);
+          ear.arc(4, -2, 4, Math.PI, 0, false); ear.strokePath();
+          ear.fillStyle(gemCol, 0.9); ear.fillEllipse(0, 6, 10, 14);
+          ear.lineStyle(0.8, 0xffffff, 0.5);
+          ear.beginPath(); ear.moveTo(0, 0); ear.lineTo(-4, 8); ear.strokePath();
+          ear.beginPath(); ear.moveTo(0, 0); ear.lineTo(4, 8); ear.strokePath();
+          const sparkR = 3 + Math.sin(eTick * 3) * 2;
+          ear.fillStyle(0xffffff, 0.4 + Math.sin(eTick * 2.5) * 0.3);
+          ear.fillCircle(-8, -4, sparkR * 0.4); ear.fillCircle(9, 2, sparkR * 0.5); ear.fillCircle(3, -8, sparkR * 0.35);
+          ear.lineStyle(1, 0xffffff, 0.6 * Math.max(0, Math.sin(eTick * 2)));
+          ear.beginPath(); ear.moveTo(-9, -5); ear.lineTo(-7, -3); ear.strokePath();
+          ear.beginPath(); ear.moveTo(-9, -3); ear.lineTo(-7, -5); ear.strokePath();
+        },
+        onComplete: () => ear.destroy(),
+      });
+
+    } else if (type === 16) {
+      // ── Centipede — wall crawler with body segments + legs (screen-space) ──
+      const onLeft = Phaser.Math.Between(0, 1) === 0;
+      const wallX = onLeft ? this.pipeInnerLeft + 10 : this.pipeInnerRight - 10;
+      const startY = Phaser.Math.Between(60, height - 60);
+      const cent = this.add.graphics().setScrollFactor(0).setDepth(5);
+      cent.x = wallX; cent.y = startY;
+      const segCount = Phaser.Math.Between(8, 14);
+      let ceTick = 0;
+      const drawCent = () => {
+        cent.clear();
+        for (let ci = 0; ci < segCount; ci++) {
+          const sy = ci * 5;
+          const wave = Math.sin(ceTick + ci * 0.5) * 3;
+          cent.fillStyle(ci === 0 ? 0x442200 : 0x663300, 1); cent.fillCircle(wave, sy, 4);
+          cent.lineStyle(0.5, 0x885522, 0.5); cent.strokeCircle(wave, sy, 4);
+          cent.lineStyle(0.8, 0x885522, 0.75);
+          cent.beginPath(); cent.moveTo(wave - 4, sy); cent.lineTo(wave - 9, sy + Math.sin(ceTick + ci * 0.7) * 3); cent.strokePath();
+          cent.beginPath(); cent.moveTo(wave + 4, sy); cent.lineTo(wave + 9, sy + Math.sin(ceTick + ci * 0.7 + Math.PI) * 3); cent.strokePath();
+        }
+        cent.fillStyle(0xff3300, 0.8); cent.fillCircle(Math.sin(ceTick) * 3, 0, 1.5); cent.fillCircle(-Math.sin(ceTick) * 3, -1, 1.5);
+        cent.lineStyle(0.8, 0x884411, 0.8);
+        cent.beginPath(); cent.moveTo(0, -4); cent.lineTo(-5 + Math.sin(ceTick) * 3, -12); cent.strokePath();
+        cent.beginPath(); cent.moveTo(0, -4); cent.lineTo(5 + Math.sin(ceTick + 1) * 3, -12); cent.strokePath();
+      };
+      let ceAlive = true;
+      const centStep = () => {
+        if (!cent.active || !ceAlive) return;
+        const dist = Phaser.Math.Between(30, 70);
+        const dur  = Phaser.Math.Between(250, 500);
+        const pause = Phaser.Math.Between(80, 300);
+        this.tweens.add({
+          targets: cent,
+          y: cent.y + dist * (Phaser.Math.Between(0, 1) ? 1 : -1),
+          duration: dur, ease: 'Linear',
+          onUpdate: () => { ceTick += 0.2; drawCent(); },
+          onComplete: () => {
+            this.time.delayedCall(pause, () => {
+              ceTick += 0.1; drawCent();
+              if (ceAlive && cent.active) centStep();
+            });
+          },
+        });
+      };
+      drawCent(); centStep();
+      this.time.delayedCall(Phaser.Math.Between(5000, 8000), () => {
+        ceAlive = false;
+        this.tweens.add({ targets: cent, alpha: 0, duration: 300, onComplete: () => cent.destroy() });
+      });
+
+    } else if (type === 17) {
+      // ── Contact lens — translucent disc drifts slowly ──
+      const startY = camera.scrollY - Phaser.Math.Between(20, 60);
+      const cl = this.add.graphics().setDepth(4);
+      cl.x = x; cl.y = startY;
+      let clTick = 0;
+      const baseX = x;
+      const drift = Phaser.Math.Between(-25, 25);
+      this.tweens.add({
+        targets: cl,
+        y: camera.scrollY + height + 60,
+        duration: Phaser.Math.Between(4000, 7000),
+        ease: 'Sine.easeIn',
+        onUpdate: (tween) => {
+          clTick += 0.05;
+          cl.x = baseX + drift * tween.progress + Math.sin(clTick * 0.8) * 8;
+          cl.clear();
+          const rX = 9 + Math.sin(clTick * 1.5) * 1.5;
+          const rY = 9 + Math.cos(clTick * 1.2) * 1.5;
+          cl.fillStyle(0x88ccee, 0.15); cl.fillEllipse(0, 0, rX * 2, rY * 2);
+          cl.lineStyle(1.5, 0x88ccee, 0.55); cl.strokeEllipse(0, 0, rX * 2, rY * 2);
+          cl.lineStyle(0.8, 0x66aacc, 0.35); cl.strokeEllipse(0, 0, rX * 1.4, rY * 1.4);
+          cl.fillStyle(0xffffff, 0.5); cl.fillCircle(-3, -3, 2);
+        },
+        onComplete: () => cl.destroy(),
+      });
+
+    } else if (type === 18) {
+      // ── Cigarette butt — glowing orange tip, fast tumble ──
+      const startY = camera.scrollY - Phaser.Math.Between(5, 40);
+      const cig = this.add.graphics().setDepth(4);
+      cig.x = x; cig.y = startY;
+      let cigTick = 0;
+      const baseX = x;
+      const drift = Phaser.Math.Between(-35, 35);
+      this.tweens.add({
+        targets: cig,
+        y: camera.scrollY + height + 60,
+        duration: Phaser.Math.Between(700, 1600),
+        ease: 'Power2',
+        onUpdate: (tween) => {
+          cigTick += 0.22;
+          cig.x = baseX + drift * tween.progress;
+          cig.clear();
+          cig.fillStyle(0xeeeecc, 1); cig.fillRect(-2, -10, 4, 18);
+          cig.fillStyle(0xcc8844, 1); cig.fillRect(-2, 8, 4, 5);
+          cig.fillStyle(0x888888, 0.9); cig.fillRect(-2, -12, 4, 4);
+          const glow = 0.6 + Math.sin(cigTick * 3) * 0.4;
+          cig.fillStyle(0xff6600, glow); cig.fillCircle(0, -11, 3);
+          cig.fillStyle(0xff9900, glow * 0.6); cig.fillCircle(0, -11, 5);
+        },
+        onComplete: () => cig.destroy(),
+      });
+
+    } else {
+      // ── Matchstick — spent head, tumbles ──
+      const startY = camera.scrollY - Phaser.Math.Between(5, 40);
+      const match = this.add.graphics().setDepth(4);
+      match.x = x; match.y = startY;
+      let mTick = 0;
+      const baseX = x;
+      const drift = Phaser.Math.Between(-35, 35);
+      this.tweens.add({
+        targets: match,
+        y: camera.scrollY + height + 60,
+        duration: Phaser.Math.Between(900, 2000),
+        ease: 'Power1',
+        onUpdate: (tween) => {
+          mTick += 0.16;
+          match.x = baseX + drift * tween.progress;
+          match.clear();
+          match.fillStyle(0xddcc99, 1); match.fillRect(-1.5, -16, 3, 22);
+          match.fillStyle(0x221100, 1); match.fillCircle(0, -16, 4);
+          match.fillStyle(0x441100, 0.7); match.fillCircle(0, -16, 2.5);
+          const flicker = Math.sin(mTick * 4) * 0.3;
+          if (flicker > 0) { match.fillStyle(0xff4400, flicker); match.fillCircle(0, -18, 3); }
+        },
+        onComplete: () => match.destroy(),
       });
     }
   }
 
-  // ── Bathroom sink opening (iris reveal) ─────────────────────────────────
+  // ── Looking UP through the drain into the bathroom above ────────────────
 
   spawnBathroomOpening() {
     if (!this.spider?.isAlive || this.gameOver) return;
     const { width, height } = this.scale;
     const cx   = width / 2;
-    const cy   = height * 0.45; // slightly above center
-    const maxR = Math.min(width, height) * 0.32;
+    const cy   = height * 0.40;
+    const maxR = Math.min(width, height) * 0.30;
 
-    const bathroomGfx = this.add.graphics().setScrollFactor(0).setDepth(22);
-    const maskGfx     = this.make.graphics({ add: false });
-    const mask        = maskGfx.createGeometryMask();
-    bathroomGfx.setMask(mask);
+    const viewGfx = this.add.graphics().setScrollFactor(0).setDepth(22);
+    const maskGfx = this.make.graphics({ add: false });
+    const mask    = maskGfx.createGeometryMask();
+    viewGfx.setMask(mask);
 
-    const proxy = { r: 0 };
+    const proxy = { r: 0, dropY: 0 };
 
-    const drawBathroom = (r) => {
+    const drawView = (r) => {
       maskGfx.clear();
       maskGfx.fillStyle(0xffffff, 1);
       maskGfx.fillCircle(cx, cy, r);
 
-      bathroomGfx.clear();
-      if (r < 1) return;
+      viewGfx.clear();
+      if (r < 2) return;
 
-      // Checkerboard floor tiles
-      const tSz = 26;
-      for (let tx = cx - maxR; tx < cx + maxR + tSz; tx += tSz) {
-        for (let ty = cy - maxR; ty < cy + maxR + tSz; ty += tSz) {
-          const alt = (Math.floor((tx - cx + maxR) / tSz) + Math.floor((ty - cy + maxR) / tSz)) % 2;
-          bathroomGfx.fillStyle(alt ? 0xe0d8cc : 0xf2ebe0, 1);
-          bathroomGfx.fillRect(tx, ty, tSz, tSz);
-        }
+      // Background — bathroom ceiling (looking straight up)
+      viewGfx.fillStyle(0xf0ece4, 1);
+      viewGfx.fillCircle(cx, cy, r);
+
+      // Ceiling tiles — from below looking up, grid pattern
+      const tSz = 28;
+      viewGfx.lineStyle(0.8, 0xd4cfc6, 0.5);
+      for (let tx = cx - r; tx < cx + r + tSz; tx += tSz) {
+        viewGfx.beginPath(); viewGfx.moveTo(tx, cy - r); viewGfx.lineTo(tx, cy + r * 0.2); viewGfx.strokePath();
       }
-      // Grout lines
-      bathroomGfx.lineStyle(1, 0xb0a090, 0.5);
-      for (let tx = cx - maxR; tx < cx + maxR + tSz; tx += tSz) {
-        bathroomGfx.beginPath(); bathroomGfx.moveTo(tx, cy - maxR); bathroomGfx.lineTo(tx, cy + maxR); bathroomGfx.strokePath();
-      }
-      for (let ty = cy - maxR; ty < cy + maxR + tSz; ty += tSz) {
-        bathroomGfx.beginPath(); bathroomGfx.moveTo(cx - maxR, ty); bathroomGfx.lineTo(cx + maxR, ty); bathroomGfx.strokePath();
+      for (let ty = cy - r; ty < cy + r * 0.2; ty += tSz) {
+        viewGfx.beginPath(); viewGfx.moveTo(cx - r, ty); viewGfx.lineTo(cx + r, ty); viewGfx.strokePath();
       }
 
-      // Warm ceiling glow (looking up)
-      bathroomGfx.fillStyle(0xfff5cc, 0.2); bathroomGfx.fillCircle(cx, cy - maxR * 0.4, maxR * 0.55);
-      bathroomGfx.fillStyle(0xffeeaa, 0.09); bathroomGfx.fillCircle(cx, cy - maxR * 0.4, maxR * 0.85);
+      // Overhead light fixture — centre ceiling
+      const lightY = cy - r * 0.62;
+      viewGfx.fillStyle(0xfff8e0, 0.55);
+      viewGfx.fillEllipse(cx, lightY, r * 0.88, r * 0.32);
+      viewGfx.fillStyle(0xfffde8, 0.88);
+      viewGfx.fillEllipse(cx, lightY, r * 0.52, r * 0.16);
+      // Light bulb centre
+      viewGfx.fillStyle(0xffffff, 1);
+      viewGfx.fillCircle(cx, lightY, r * 0.06);
+      // Light rays streaming down toward us
+      for (let i = 0; i < 7; i++) {
+        const a  = (Math.PI * 0.35) + (i / 6) * Math.PI * 0.3;
+        const x1 = cx + Math.cos(a) * r * 0.15;
+        const y1 = lightY + r * 0.08;
+        const x2 = cx + Math.cos(a) * r * 0.75;
+        const y2 = cy + r * 0.1;
+        viewGfx.lineStyle(2.5, 0xfffde0, 0.06 + Math.random() * 0.08);
+        viewGfx.beginPath(); viewGfx.moveTo(x1, y1); viewGfx.lineTo(x2, y2); viewGfx.strokePath();
+      }
 
-      // Drain hole — looking up through it
-      const dr = maxR * 0.11;
-      bathroomGfx.fillStyle(0x1a1a1a, 1); bathroomGfx.fillCircle(cx, cy + maxR * 0.3, dr);
-      bathroomGfx.lineStyle(2.5, 0x2a2a2a, 1);
-      bathroomGfx.beginPath(); bathroomGfx.moveTo(cx - dr, cy + maxR * 0.3); bathroomGfx.lineTo(cx + dr, cy + maxR * 0.3); bathroomGfx.strokePath();
-      bathroomGfx.beginPath(); bathroomGfx.moveTo(cx, cy + maxR * 0.3 - dr); bathroomGfx.lineTo(cx, cy + maxR * 0.3 + dr); bathroomGfx.strokePath();
-      bathroomGfx.lineStyle(1.5, 0x2a2a2a, 0.7);
-      [dr * -0.5, dr * 0.5].forEach(off => {
-        bathroomGfx.beginPath(); bathroomGfx.moveTo(cx - dr, cy + maxR * 0.3 + off); bathroomGfx.lineTo(cx + dr, cy + maxR * 0.3 + off); bathroomGfx.strokePath();
-      });
+      // Sink basin underside — white porcelain bowl we're looking up into
+      viewGfx.fillStyle(0xe6e2d8, 1);
+      viewGfx.fillEllipse(cx, cy + r * 0.72, r * 2.4, r * 0.65);
+      // Porcelain sheen
+      viewGfx.fillStyle(0xfafaf4, 0.45);
+      viewGfx.fillEllipse(cx - r * 0.15, cy + r * 0.6, r * 0.9, r * 0.2);
 
-      // Rusty rim of the drain opening
-      bathroomGfx.lineStyle(8, 0x4a3520, 0.9); bathroomGfx.strokeCircle(cx, cy, r);
-      bathroomGfx.lineStyle(3, 0x6a5030, 0.5); bathroomGfx.strokeCircle(cx, cy, r - 5);
-      bathroomGfx.lineStyle(2, 0x886644, 0.25); bathroomGfx.strokeCircle(cx, cy, r - 12);
+      // Faucet hanging down from above
+      const fax = cx + r * 0.12;
+      const fatop = cy - r * 0.38;
+      viewGfx.fillStyle(0xbbbbbb, 1);
+      viewGfx.fillRect(fax - 4, fatop, 8, r * 0.28);
+      // Faucet head curve (pipe curves down toward drain)
+      viewGfx.fillStyle(0xaaaaaa, 1);
+      viewGfx.fillRect(fax - 4, fatop + r * 0.28, 22, 7);
+      viewGfx.fillRect(fax + 14, fatop + r * 0.24, 6, 12);
+      // Faucet shine
+      viewGfx.fillStyle(0xdddddd, 0.6);
+      viewGfx.fillRect(fax - 2, fatop + 2, 3, r * 0.2);
+
+      // Dripping water — animated via proxy.dropY
+      if (r > maxR * 0.5) {
+        viewGfx.fillStyle(0x88bbdd, 0.88);
+        viewGfx.fillEllipse(fax + 17, fatop + r * 0.36 + proxy.dropY, 7, 11);
+        // Drip trail
+        viewGfx.fillStyle(0x88bbdd, 0.3);
+        viewGfx.fillRect(fax + 19, fatop + r * 0.3, 2, proxy.dropY);
+      }
+
+      // Drain grate — looking UP from below, so grate is a circle with cross bars
+      const grateY  = cy + r * 0.18;
+      const grateR  = r * 0.20;
+      // Dark grate opening
+      viewGfx.fillStyle(0x111111, 0.92);
+      viewGfx.fillCircle(cx, grateY, grateR);
+      // Grate bars from below (cross + diagonals)
+      viewGfx.lineStyle(3.5, 0x0a0a0a, 1);
+      viewGfx.beginPath(); viewGfx.moveTo(cx - grateR, grateY); viewGfx.lineTo(cx + grateR, grateY); viewGfx.strokePath();
+      viewGfx.beginPath(); viewGfx.moveTo(cx, grateY - grateR); viewGfx.lineTo(cx, grateY + grateR); viewGfx.strokePath();
+      viewGfx.lineStyle(1.8, 0x1a1a1a, 0.8);
+      const d45 = grateR * 0.7;
+      viewGfx.beginPath(); viewGfx.moveTo(cx - d45, grateY - d45); viewGfx.lineTo(cx + d45, grateY + d45); viewGfx.strokePath();
+      viewGfx.beginPath(); viewGfx.moveTo(cx + d45, grateY - d45); viewGfx.lineTo(cx - d45, grateY + d45); viewGfx.strokePath();
+      // Grate rings
+      viewGfx.lineStyle(2, 0x2a2a2a, 0.9); viewGfx.strokeCircle(cx, grateY, grateR);
+      viewGfx.lineStyle(1, 0x2a2a2a, 0.5); viewGfx.strokeCircle(cx, grateY, grateR * 0.55);
+      // Lime scale / soap crust on grate edges
+      viewGfx.fillStyle(0xeeeecc, 0.3);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        viewGfx.fillEllipse(cx + Math.cos(a) * grateR, grateY + Math.sin(a) * grateR, 5, 3);
+      }
+
+      // Pipe interior wall visible around the drain opening (rusty metal)
+      viewGfx.lineStyle(11, 0x3a2510, 0.95); viewGfx.strokeCircle(cx, cy, r);
+      viewGfx.lineStyle(5,  0x5a3818, 0.6);  viewGfx.strokeCircle(cx, cy, r - 6);
+      viewGfx.lineStyle(2,  0x7a5530, 0.3);  viewGfx.strokeCircle(cx, cy, r - 14);
+      // Mineral deposits on inside rim
+      viewGfx.fillStyle(0xeeeebb, 0.22);
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        viewGfx.fillEllipse(cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5), Phaser.Math.Between(3, 10), Phaser.Math.Between(2, 5));
+      }
     };
 
-    // Iris open
+    // Animate drip inside the bathroom view
+    let dropT = 0;
+    const dropUpdate = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: () => {
+        dropT += 0.04;
+        proxy.dropY = (Math.sin(dropT) * 0.5 + 0.5) * 22;
+        if (proxy.r > 0) drawView(proxy.r);
+      },
+    });
+
+    // Iris-wipe open
     this.tweens.add({
-      targets: proxy, r: maxR, duration: 1000, ease: 'Back.easeOut',
-      onUpdate: () => drawBathroom(proxy.r),
+      targets: proxy, r: maxR, duration: 950, ease: 'Back.easeOut',
+      onUpdate: () => drawView(proxy.r),
       onComplete: () => {
-        drawBathroom(maxR);
-        // Hold 4-6s then close
-        const holdMs = Phaser.Math.Between(4000, 7000);
+        const holdMs = Phaser.Math.Between(6000, 10000);
         this.time.delayedCall(holdMs, () => {
-          if (!bathroomGfx.scene) return;
+          if (!viewGfx.scene) return;
+          dropUpdate.remove();
           this.tweens.add({
-            targets: proxy, r: 0, duration: 700, ease: 'Power2',
-            onUpdate: () => drawBathroom(proxy.r),
-            onComplete: () => { bathroomGfx.destroy(); maskGfx.destroy(); },
+            targets: proxy, r: 0, duration: 650, ease: 'Power2',
+            onUpdate: () => drawView(proxy.r),
+            onComplete: () => { viewGfx.destroy(); maskGfx.destroy(); },
           });
         });
       },
@@ -554,49 +1123,120 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  // ── Server crash — JUMP SCARE + water surge ──────────────────────────────
+  // ── Server crash — JUMP SCARE + tidal wave down the pipe ────────────────
 
   triggerServerFlood() {
     const { width, height } = this.scale;
-    this._floodWarnActive = false; // cancel any warning
+    this._floodWarnActive = false;
+    const innerW = width - PIPE_WALL * 2;
 
-    // JUMP SCARE: immediate sound + violent shake + white flash
     sound.playJumpScareCrash();
-    this.cameras.main.shake(900, 0.065);
+    this.cameras.main.shake(1200, 0.085);
 
-    // Instant full-screen white flash (the scare)
-    const flash = this.add.graphics().setScrollFactor(0).setDepth(25);
+    // Instant white flash
+    const flash = this.add.graphics().setScrollFactor(0).setDepth(28);
     flash.fillStyle(0xffffff, 1); flash.fillRect(0, 0, width, height);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 150, ease: 'Power2',
+      onComplete: () => flash.destroy() });
 
-    // Flash fades fast while water comes in behind it
-    this.tweens.add({ targets: flash, alpha: 0, duration: 200, ease: 'Power2',
-      onComplete: () => flash.destroy(),
-    });
-
-    // Water streams crash from top
-    const streams = [];
+    // Pre-wave spray droplets that appear during flash
     for (let i = 0; i < 8; i++) {
-      const g = this.add.graphics().setScrollFactor(0).setDepth(17);
-      const sx = (width / 8) * i + Phaser.Math.Between(-8, 8);
-      const sw = Phaser.Math.Between(22, 52);
-      g.fillStyle(0x1166ee, 0.48 + Math.random() * 0.38); g.fillRect(sx, 0, sw, height);
-      g.setAlpha(0); streams.push(g);
-      this.tweens.add({ targets: g, alpha: 1, duration: 180, delay: i * 22 });
+      this.time.delayedCall(i * 18, () => {
+        const sx = PIPE_WALL + Phaser.Math.Between(0, innerW);
+        const d  = this.add.graphics().setScrollFactor(0).setDepth(19);
+        d.fillStyle(0x88aaff, 0.9);
+        d.fillEllipse(sx, Phaser.Math.Between(0, 30), 7, 16);
+        this.tweens.add({ targets: d, y: `+=${Phaser.Math.Between(40, 90)}`, alpha: 0,
+          duration: 220, onComplete: () => d.destroy() });
+      });
     }
 
-    // Full blue water surge slides down from top (the wave)
-    const surge = this.add.graphics().setScrollFactor(0).setDepth(18);
-    surge.fillStyle(0x0033bb, 0.92); surge.fillRect(0, 0, width, height);
-    surge.y = -height;
+    const waveDelay = 130;
 
+    // Layer 1 — dark deep-water body (arrives first, slowest)
+    const layerDeep = this.add.graphics().setScrollFactor(0).setDepth(19);
+    layerDeep.fillStyle(0x000d33, 0.98);
+    layerDeep.fillRect(PIPE_WALL, 0, innerW, height + 100);
+    layerDeep.y = -(height + 100);
+
+    // Layer 2 — main water body
+    const layerMain = this.add.graphics().setScrollFactor(0).setDepth(20);
+    layerMain.fillStyle(0x0033bb, 0.92);
+    layerMain.fillRect(PIPE_WALL, 0, innerW, height + 100);
+    layerMain.y = -(height + 100);
+
+    // Layer 3 — brighter mid-water
+    const layerBright = this.add.graphics().setScrollFactor(0).setDepth(21);
+    layerBright.fillStyle(0x1155ee, 0.72);
+    layerBright.fillRect(PIPE_WALL, 0, innerW, height + 100);
+    layerBright.y = -(height + 100);
+
+    // Wave crest — jagged frothy leading edge
+    const crest = this.add.graphics().setScrollFactor(0).setDepth(22);
+    crest.fillStyle(0x66aaff, 0.75);
+    crest.fillRect(PIPE_WALL, 0, innerW, 55);
+    // Foam blobs at crest
+    for (let i = 0; i < 22; i++) {
+      const bx = PIPE_WALL + (innerW / 22) * i + Phaser.Math.Between(-6, 6);
+      const by = Phaser.Math.Between(0, 48);
+      const br = Phaser.Math.Between(9, 26);
+      crest.fillStyle(0xffffff, 0.28 + Math.random() * 0.45);
+      crest.fillEllipse(bx, by, br * 2.2, br * 0.9);
+    }
+    // Hard white froth line at very front of wave
+    crest.fillStyle(0xeef8ff, 0.7);
+    crest.fillRect(PIPE_WALL, 50, innerW, 6);
+    crest.y = -(height + 100);
+
+    // Spray ahead of crest
+    const spray = this.add.graphics().setScrollFactor(0).setDepth(23);
+    for (let i = 0; i < 30; i++) {
+      spray.fillStyle(0x99ccff, 0.4 + Math.random() * 0.45);
+      spray.fillEllipse(
+        PIPE_WALL + Phaser.Math.Between(0, innerW),
+        Phaser.Math.Between(80, 220),
+        Phaser.Math.Between(3, 11),
+        Phaser.Math.Between(6, 22)
+      );
+    }
+    spray.y = -(height + 100);
+
+    // Animate wave rushing down
+    this.tweens.add({ targets: layerDeep,   y: 0, duration: 380, delay: waveDelay,      ease: 'Power3' });
+    this.tweens.add({ targets: layerMain,   y: 0, duration: 320, delay: waveDelay + 20, ease: 'Power3' });
+    this.tweens.add({ targets: layerBright, y: 0, duration: 280, delay: waveDelay + 35, ease: 'Power3' });
     this.tweens.add({
-      targets: surge, y: 0, duration: 340, delay: 80, ease: 'Power3',
+      targets: [crest, spray], y: 0, duration: 250, delay: waveDelay + 50, ease: 'Power3',
       onComplete: () => {
         this.spider.die('flood');
-        this.time.delayedCall(380, () => {
+
+        // Rising bubbles through water column
+        for (let i = 0; i < 22; i++) {
+          this.time.delayedCall(i * 55, () => {
+            if (!layerMain.scene) return;
+            const bx = PIPE_WALL + Phaser.Math.Between(0, innerW);
+            const by = Phaser.Math.Between(height * 0.2, height);
+            const br = Phaser.Math.Between(4, 16);
+            const bub = this.add.graphics().setScrollFactor(0).setDepth(24);
+            bub.lineStyle(1.5, 0xaaddff, 0.75); bub.strokeCircle(bx, by, br);
+            bub.fillStyle(0x88bbff, 0.08);       bub.fillCircle(bx, by, br);
+            this.tweens.add({
+              targets: bub,
+              y: bub.y - Phaser.Math.Between(100, 300),
+              alpha: 0,
+              duration: Phaser.Math.Between(700, 2000),
+              ease: 'Sine.easeIn',
+              onComplete: () => bub.destroy(),
+            });
+          });
+        }
+
+        // Drain water out after 2s
+        this.time.delayedCall(2000, () => {
+          const all = [layerDeep, layerMain, layerBright, crest, spray];
           this.tweens.add({
-            targets: [...streams, surge], alpha: 0, duration: 1000,
-            onComplete: () => { streams.forEach(g => g.destroy()); surge.destroy(); },
+            targets: all, alpha: 0, duration: 1100,
+            onComplete: () => all.forEach(g => { if (g?.scene) g.destroy(); }),
           });
         });
       },

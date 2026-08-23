@@ -1,4 +1,3 @@
-import HulaHoop from './HulaHoop';
 import { PLATFORM_TYPES } from './Platform';
 import { sound } from './SoundManager';
 
@@ -11,10 +10,6 @@ export default class Spider {
     this.tileHeight = 0;
     this.startY = y;
 
-    // Ceiling cap tracking
-    this.airTime = 0;          // ms spent airborne continuously
-    this.HOOP_SLIP_LIMIT = 3500; // ms in air before hoop slips
-    this.hoopSlipped = false;
     this.externalStunned = false; // set by HazardManager for shock stun
 
     // Physics body
@@ -29,9 +24,6 @@ export default class Spider {
     this.silkGfx = scene.add.graphics().setScrollFactor(0).setDepth(9);
     this.silkOriginY = y;
     this.drawSpider();
-
-    // Hula hoop
-    this.hoop = new HulaHoop(scene, this.sprite);
 
     // Input
     this.cursors = scene.input.keyboard.createCursorKeys();
@@ -73,18 +65,6 @@ export default class Spider {
   update() {
     if (!this.isAlive) return;
 
-    const delta = this.scene.game.loop.delta;
-
-    // Track air time for ceiling cap
-    if (!this.onGround) {
-      this.airTime += delta;
-      if (this.airTime > this.HOOP_SLIP_LIMIT && !this.hoopSlipped) {
-        this.triggerHoopSlip();
-      }
-    } else {
-      this.airTime = 0;
-    }
-
     // Stunned (shock) — no player control
     if (this.externalStunned) {
       this.drawSpider();
@@ -101,10 +81,8 @@ export default class Spider {
     const speed = this.onGround ? 220 : 160;
     if (leftDown) {
       this.sprite.setVelocityX(-speed);
-      this.hoop.applyInput(-1);
     } else if (rightDown) {
       this.sprite.setVelocityX(speed);
-      this.hoop.applyInput(1);
     }
 
     // Slippery platform reduces drag
@@ -116,8 +94,7 @@ export default class Spider {
 
     // Jump
     if (jumpDown && this.onGround) {
-      const boost = this.hoop.getJumpBoost();
-      this.sprite.setVelocityY(-500 - boost);
+      this.sprite.setVelocityY(-580);
       this.onGround = false;
       this.currentPlatform = null;
       sound.playJump();
@@ -253,49 +230,6 @@ export default class Spider {
     this.gfx.fillEllipse(x, y + 20, 12, 8);
   }
 
-  triggerHoopSlip() {
-    this.hoopSlipped = true;
-    const { x, y } = this.sprite;
-
-    // Hoop flies off
-    this.hoop.graphic.setAlpha(1);
-    this.scene.tweens.add({
-      targets: this.hoop.graphic,
-      x: x + Phaser.Math.Between(-100, 100),
-      y: y - 150,
-      alpha: 0,
-      angle: 360,
-      duration: 600,
-      ease: 'Power2',
-    });
-
-    // Warning text
-    const warn = this.scene.add.text(x, y - 60, 'HOOP SLIP!', {
-      fontSize: '20px',
-      fontFamily: 'Arial Black, sans-serif',
-      color: '#ff8800',
-      stroke: '#000000',
-      strokeThickness: 4,
-    }).setOrigin(0.5);
-
-    this.scene.tweens.add({
-      targets: warn,
-      y: warn.y - 40,
-      alpha: 0,
-      duration: 800,
-      onComplete: () => warn.destroy(),
-    });
-
-    // Kill upward velocity — spider falls
-    this.sprite.setVelocityY(300);
-    this.sprite.setVelocityX(Phaser.Math.Between(-80, 80));
-
-    // Brief spin before fall
-    this.scene.time.delayedCall(400, () => {
-      if (this.isAlive) this.die('hoop_slip');
-    });
-  }
-
   setStunned(isStunned) {
     this.externalStunned = isStunned;
   }
@@ -303,7 +237,6 @@ export default class Spider {
   setOnGround(platform) {
     this.onGround = true;
     this.currentPlatform = platform;
-    this.hoopSlipped = false; // reset on landing
   }
 
   setAirborne() {
@@ -361,7 +294,6 @@ export default class Spider {
 
   destroy() {
     this.scene.events.off('update', this.update, this);
-    this.hoop.destroy();
     this.gfx.destroy();
     this.silkGfx.destroy();
     this.sprite.destroy();
