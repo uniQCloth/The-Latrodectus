@@ -93,6 +93,10 @@ class SocketManager {
     this.socket.emit('cashout');
   }
 
+  clearListeners() {
+    this.listeners.clear();
+  }
+
   disconnect() {
     if (this.socket) this.socket.disconnect();
   }

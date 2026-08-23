@@ -206,12 +206,13 @@ export default class UIScene extends Phaser.Scene {
       color: '#00ff88', stroke: '#000000', strokeThickness: 4, align: 'center',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(12).setAlpha(0);
 
-    this.crashOverlay = this.add.text(width / 2, height * 0.38, '', {
+    // cashout sits high, crash sits low — they never overlap
+    this.crashOverlay = this.add.text(width / 2, height * 0.46, '', {
       fontSize: '44px', fontFamily: 'Arial Black, sans-serif',
       color: '#ff2200', stroke: '#000000', strokeThickness: 7, align: 'center',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(12).setAlpha(0);
 
-    this.cashoutOverlay = this.add.text(width / 2, height * 0.38, '', {
+    this.cashoutOverlay = this.add.text(width / 2, height * 0.28, '', {
       fontSize: '28px', fontFamily: 'Arial Black, sans-serif',
       color: '#00ff88', stroke: '#000000', strokeThickness: 5, align: 'center',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(12).setAlpha(0);
@@ -266,6 +267,7 @@ export default class UIScene extends Phaser.Scene {
     this.muteBtn.on('pointerdown', () => {
       const muted = sound.toggleMute();
       this.muteBtn.setText(muted ? '🔇' : '🔊');
+      sound.setBgMusicMute(muted);
     });
 
     // ── Wire socket events ─────────────────────────────────────────────────
@@ -474,6 +476,10 @@ export default class UIScene extends Phaser.Scene {
     });
 
     socket.on('round:betting', ({ roundId, publicHash, duration }) => {
+      if (!this._bgMusicStarted) {
+        this._bgMusicStarted = true;
+        sound.startBgMusic();
+      }
       this.roundId = roundId;
       this.state = STATES.BETTING;
       this.betPlaced = false;
@@ -632,9 +638,12 @@ export default class UIScene extends Phaser.Scene {
 
   enterResultUI(crashPoint, secretSeed, roundId) {
     const color = crashPoint <= 1.5 ? '#ff2200' : crashPoint <= 5 ? '#ff8800' : '#ffd700';
+    // If player cashed out, drop crash text lower so cashout text stays readable above it
+    const crashY = this.cashedOut ? this.scale.height * 0.52 : this.scale.height * 0.46;
     this.crashOverlay
       .setText(`CRASHED!\n${crashPoint.toFixed(2)}×`)
       .setColor(color)
+      .setY(crashY)
       .setAlpha(1);
 
     this.tweens.add({
@@ -705,11 +714,12 @@ export default class UIScene extends Phaser.Scene {
   showCashoutSuccess(multiplier, payout) {
     this.cashoutOverlay
       .setText(`CASHED OUT!\n${multiplier.toFixed(2)}× = $${payout.toFixed(2)}`)
+      .setY(this.scale.height * 0.31)
       .setAlpha(1);
 
     this.tweens.add({
       targets: this.cashoutOverlay,
-      y: { from: this.scale.height * 0.42, to: this.scale.height * 0.36 },
+      y: { from: this.scale.height * 0.31, to: this.scale.height * 0.26 },
       duration: 500, ease: 'Power2',
     });
   }
@@ -811,6 +821,12 @@ export default class UIScene extends Phaser.Scene {
       const payout = (this.betAmount * multiplier).toFixed(2);
       this.showCashoutSuccess(multiplier, payout);
     }
+  }
+
+  shutdown() {
+    // Clear all socket listeners so they don't stack if scene restarts
+    socket.clearListeners();
+    sound.stopBgMusic();
   }
 
   // ─── Button factory ───────────────────────────────────────────────────────

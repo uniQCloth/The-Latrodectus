@@ -196,6 +196,138 @@ export default class SoundManager {
     this._tone(800, 'sine', 0.03, 0.05);
   }
 
+  // ── Background Music ─────────────────────────────────────────────────────
+
+  startBgMusic() {
+    if (!this._ctx || this._bgRunning) return;
+    this._resume();
+    this._bgRunning = true;
+
+    this._bgGain = this._ctx.createGain();
+    this._bgGain.gain.value = 0;
+    this._bgGain.connect(this._ctx.destination);
+
+    // Fade in over 3 seconds
+    const now = this._ctx.currentTime;
+    this._bgGain.gain.setValueAtTime(0, now);
+    this._bgGain.gain.linearRampToValueAtTime(0.14, now + 3);
+
+    this._bgOscs = [];
+
+    // Bass drone layer — 3 oscillators with slow amplitude LFO
+    const makeDrone = (freq, vol, lfoRate) => {
+      const osc  = this._ctx.createOscillator();
+      const lfo  = this._ctx.createOscillator();
+      const lfoG = this._ctx.createGain();
+      const gain = this._ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      lfo.type = 'sine';
+      lfo.frequency.value = lfoRate;
+      lfoG.gain.value = vol * 0.25;
+      gain.gain.value = vol;
+      lfo.connect(lfoG);
+      lfoG.connect(gain.gain);
+      osc.connect(gain);
+      gain.connect(this._bgGain);
+      osc.start();
+      lfo.start();
+      this._bgOscs.push(osc, lfo);
+    };
+    makeDrone(55,   0.55, 0.18);  // deep bass A1
+    makeDrone(82.5, 0.30, 0.27);  // E2 — fifth above
+    makeDrone(110,  0.18, 0.41);  // A2 — octave
+    makeDrone(146,  0.10, 0.55);  // D3 — fourth (minor tension)
+
+    // Eerie melody — A minor pentatonic arpeggio
+    const scale   = [220, 261, 293, 349, 392, 440, 523, 392, 349, 293];
+    let melStep   = 0;
+    const bpm     = 72;
+    const stepMs  = (60000 / bpm) / 2; // 8th notes
+
+    this._melodyInterval = setInterval(() => {
+      if (!this._bgRunning || this._muted) return;
+      const freq = scale[melStep % scale.length];
+      const t    = this._ctx.currentTime;
+      const osc  = this._ctx.createOscillator();
+      const gain = this._ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.07, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.connect(gain);
+      gain.connect(this._bgGain);
+      osc.start(t);
+      osc.stop(t + 0.6);
+      melStep++;
+    }, stepMs);
+
+    // Kick pulse — every beat, low sine sweep (heartbeat quality)
+    const beatMs = 60000 / bpm;
+    this._kickInterval = setInterval(() => {
+      if (!this._bgRunning || this._muted) return;
+      const t    = this._ctx.currentTime;
+      const osc  = this._ctx.createOscillator();
+      const gain = this._ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(90, t);
+      osc.frequency.exponentialRampToValueAtTime(22, t + 0.18);
+      gain.gain.setValueAtTime(0.6, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+      osc.connect(gain);
+      gain.connect(this._bgGain);
+      osc.start(t);
+      osc.stop(t + 0.25);
+    }, beatMs);
+
+    // Hi-hat noise — off-beats
+    this._hatInterval = setInterval(() => {
+      if (!this._bgRunning || this._muted) return;
+      const t       = this._ctx.currentTime;
+      const bufSize = Math.ceil(this._ctx.sampleRate * 0.05);
+      const buf     = this._ctx.createBuffer(1, bufSize, this._ctx.sampleRate);
+      const d       = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) d[i] = Math.random() * 2 - 1;
+      const src  = this._ctx.createBufferSource();
+      const filt = this._ctx.createBiquadFilter();
+      const gain = this._ctx.createGain();
+      src.buffer  = buf;
+      filt.type   = 'highpass';
+      filt.frequency.value = 6000;
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      src.connect(filt);
+      filt.connect(gain);
+      gain.connect(this._bgGain);
+      src.start(t);
+      src.stop(t + 0.06);
+    }, beatMs);
+  }
+
+  stopBgMusic(fadeSecs = 1.5) {
+    if (!this._bgRunning) return;
+    this._bgRunning = false;
+    clearInterval(this._melodyInterval);
+    clearInterval(this._kickInterval);
+    clearInterval(this._hatInterval);
+    if (this._bgGain && this._ctx) {
+      const now = this._ctx.currentTime;
+      this._bgGain.gain.setValueAtTime(this._bgGain.gain.value, now);
+      this._bgGain.gain.linearRampToValueAtTime(0, now + fadeSecs);
+      setTimeout(() => {
+        this._bgOscs?.forEach(osc => { try { osc.stop(); } catch {} });
+        this._bgOscs = [];
+      }, (fadeSecs + 0.2) * 1000);
+    }
+  }
+
+  setBgMusicMute(muted) {
+    if (!this._bgGain || !this._ctx) return;
+    const now = this._ctx.currentTime;
+    this._bgGain.gain.setValueAtTime(this._bgGain.gain.value, now);
+    this._bgGain.gain.linearRampToValueAtTime(muted ? 0 : 0.14, now + 0.3);
+  }
+
   toggleMute() {
     this._muted = !this._muted;
     if (this._masterGain) {
