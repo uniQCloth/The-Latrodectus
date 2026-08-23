@@ -45,13 +45,13 @@ export default class UIScene extends Phaser.Scene {
       fontSize: '13px', color: '#888888',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
-    this.wormText = this.add.text(width - 10, 10, '🐛 0/3', {
-      fontSize: '15px', color: '#00ff88',
+    this.wormText = this.add.text(width - 10, 8, '🐛 0/3', {
+      fontSize: '14px', color: '#00ff88',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
-    this.roundInfo = this.add.text(10, 10, 'Round #—', {
+    this.roundInfo = this.add.text(width / 2, 76, 'Round #—', {
       fontSize: '10px', color: '#444444',
-    }).setScrollFactor(0).setDepth(11);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
     // Connection dot
     this.connDot = this.add.circle(width - 10, height - 110, 5, 0xff0000)
@@ -177,7 +177,7 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Mute button ────────────────────────────────────────────────────────
 
-    this.muteBtn = this.add.text(width - 10, 10, '🔊', {
+    this.muteBtn = this.add.text(width - 10, 32, '🔊', {
       fontSize: '18px',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11).setInteractive({ useHandCursor: true });
     this.muteBtn.on('pointerdown', () => {
@@ -325,7 +325,7 @@ export default class UIScene extends Phaser.Scene {
     socket.on('round:crashed', ({ crashPoint, secretSeed, roundId }) => {
       this.state = STATES.RESULT;
       this.enterResultUI(crashPoint, secretSeed, roundId);
-      sound.playCrash();
+      // Sound handled by triggerServerFlood() via playJumpScareCrash()
     });
 
     socket.on('cashout:confirmed', ({ multiplier, payout, balance }) => {
