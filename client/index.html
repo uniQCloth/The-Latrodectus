@@ -25,16 +25,22 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      /* Safe area insets for notched phones */
       padding-top: env(safe-area-inset-top);
       padding-bottom: env(safe-area-inset-bottom);
     }
+    #game-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+    }
     canvas {
       display: block;
-      /* Prevent canvas from triggering context menu on long-press */
+      margin: auto;
       -webkit-touch-callout: none;
     }
   </style>
 </head>
-<body></body>
+<body><div id="game-container"></div></body>
 </html>

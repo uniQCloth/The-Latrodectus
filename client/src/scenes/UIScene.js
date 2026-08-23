@@ -29,8 +29,8 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Background panels ──────────────────────────────────────────────────
 
-    // Top HUD bar
-    this.add.rectangle(width / 2, 45, width, 86, 0x000000, 0.8).setScrollFactor(0).setDepth(10);
+    // Top HUD bar — taller to hold history chips below multiplier
+    this.add.rectangle(width / 2, 48, width, 96, 0x000000, 0.8).setScrollFactor(0).setDepth(10);
 
     // Bottom panel
     this.add.rectangle(width / 2, height - 60, width, 116, 0x0d0d0d, 0.95).setScrollFactor(0).setDepth(10);
@@ -39,21 +39,21 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Top HUD ────────────────────────────────────────────────────────────
 
-    this.multText = this.add.text(width / 2, 28, '1.00×', {
-      fontSize: '40px', fontFamily: 'Arial Black, sans-serif',
+    this.multText = this.add.text(width / 2, 26, '1.00×', {
+      fontSize: '36px', fontFamily: 'Arial Black, sans-serif',
       color: '#ffffff', stroke: '#000000', strokeThickness: 6,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
-    this.tileText = this.add.text(width / 2, 64, 'Tile 0 / 5000', {
-      fontSize: '13px', color: '#888888',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
+    this.tileText = this.add.text(14, 62, 'Tile 0 / 5000', {
+      fontSize: '11px', color: '#888888',
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
 
     this.wormText = this.add.text(width - 10, 8, '🐛 0/3', {
       fontSize: '14px', color: '#00ff88',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
-    this.roundInfo = this.add.text(width / 2, 76, 'Round #—', {
-      fontSize: '10px', color: '#444444',
+    this.roundInfo = this.add.text(width / 2, 90, 'Round #—', {
+      fontSize: '8px', color: '#333333',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
     // Connection dot
@@ -155,9 +155,9 @@ export default class UIScene extends Phaser.Scene {
       fontSize: '9px', color: '#555555',
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(12);
 
-    this._autoBetCountText = this.add.text(TGL_X + TGL_W + 5, TGL_Y, '', {
-      fontSize: '9px', color: '#00ff88',
-    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(12);
+    this._autoBetCountText = this.add.text(TGL_X + TGL_W / 2, TGL_Y - TGL_H / 2 - 1, '', {
+      fontSize: '8px', color: '#00ff88',
+    }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(12);
 
     const tglZone = this.add.zone(TGL_X, TGL_Y, TGL_W, TGL_H)
       .setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
@@ -177,7 +177,7 @@ export default class UIScene extends Phaser.Scene {
       // ON / OFF text inside pill
       g.fillStyle(on ? 0x00ff88 : 0x555555, 0);
       const labelX = on ? TGL_X + 8 : TGL_X + TGL_W - 8;
-      const pillLabel = on ? 'ON' : 'OFF';
+      const pillLabel = on ? (this.autoBetRoundsLeft > 0 ? `${this.autoBetRoundsLeft}` : 'ON') : 'OFF';
       // Re-use a cached text object to avoid creating per-draw
       if (!this._tglPillText) {
         this._tglPillText = this.add.text(labelX, TGL_Y, pillLabel, {
@@ -217,11 +217,12 @@ export default class UIScene extends Phaser.Scene {
 
     // ── History bar (last 8 rounds) ────────────────────────────────────────
 
+    // ── History bar — top HUD, right-aligned under multiplier ────────────────
     this.historySlots = [];
     for (let i = 0; i < 8; i++) {
-      const slot = this.add.text(width - 10 - i * 44, height - 18, '', {
-        fontSize: '11px', color: '#ffffff',
-        backgroundColor: '#333333',
+      const slot = this.add.text(width - 8 - i * 42, 79, '', {
+        fontSize: '10px', color: '#ffffff',
+        backgroundColor: '#1a1a1a',
         padding: { x: 4, y: 2 },
       }).setOrigin(1, 1).setScrollFactor(0).setDepth(11);
       this.historySlots.push(slot);
