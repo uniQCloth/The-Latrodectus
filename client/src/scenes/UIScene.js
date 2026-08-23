@@ -32,9 +32,9 @@ export default class UIScene extends Phaser.Scene {
     // Top HUD bar
     this.add.rectangle(width / 2, 45, width, 86, 0x000000, 0.8).setScrollFactor(0).setDepth(10);
 
-    // Bottom panel — taller to fit auto-cashout + auto-bet toggle
-    this.add.rectangle(width / 2, height - 66, width, 128, 0x0d0d0d, 0.95).setScrollFactor(0).setDepth(10);
-    this.add.rectangle(width / 2, height - 66, width, 128, 0x000000, 0)
+    // Bottom panel
+    this.add.rectangle(width / 2, height - 60, width, 116, 0x0d0d0d, 0.95).setScrollFactor(0).setDepth(10);
+    this.add.rectangle(width / 2, height - 60, width, 116, 0x000000, 0)
       .setStrokeStyle(1, 0x00ff88, 0.25).setScrollFactor(0).setDepth(10);
 
     // ── Top HUD ────────────────────────────────────────────────────────────
@@ -57,24 +57,24 @@ export default class UIScene extends Phaser.Scene {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
     // Connection dot
-    this.connDot = this.add.circle(width - 10, height - 122, 5, 0xff0000)
+    this.connDot = this.add.circle(width - 10, height - 112, 5, 0xff0000)
       .setScrollFactor(0).setDepth(11);
-    this.connLabel = this.add.text(width - 18, height - 129, 'OFFLINE', {
+    this.connLabel = this.add.text(width - 18, height - 119, 'OFFLINE', {
       fontSize: '9px', color: '#ff4444',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
-    // ── Balance ────────────────────────────────────────────────────────────
+    // ── Balance — depth 13 so it always renders above boxes below it ────────
 
-    this.balanceText = this.add.text(14, height - 118, '💰 $1000.00', {
-      fontSize: '14px', color: '#ffd700', fontFamily: 'Arial Black, sans-serif',
-    }).setScrollFactor(0).setDepth(11);
+    this.balanceText = this.add.text(14, height - 112, '💰 $1000.00', {
+      fontSize: '13px', color: '#ffd700', fontFamily: 'Arial Black, sans-serif',
+    }).setScrollFactor(0).setDepth(13);
 
     // ── Bet amount field (clickable → opens number input) ──────────────────
 
     const FIELD_X = 14;
-    const FIELD_Y = height - 88;
-    const FIELD_W = 220;
-    const FIELD_H = 42;
+    const FIELD_Y = height - 82;   // top edge ≈ height-93, sits just below balance
+    const FIELD_W = 190;
+    const FIELD_H = 26;
 
     // Background pill
     this.betFieldBg = this.add.rectangle(
@@ -83,23 +83,18 @@ export default class UIScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(11)
       .setInteractive({ useHandCursor: true });
 
-    // Tiny label
-    this.add.text(FIELD_X + FIELD_W / 2, FIELD_Y - 9, 'BET AMOUNT', {
-      fontSize: '9px', color: '#445544',
-    }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(12);
-
     // Amount text — tap/click to edit
     this.betAmountText = this.add.text(
-      FIELD_X + FIELD_W / 2, FIELD_Y + 2, '0.50 USDT', {
-        fontSize: '20px', fontFamily: 'Arial Black, sans-serif',
+      FIELD_X + FIELD_W / 2, FIELD_Y, '0.50 USDT', {
+        fontSize: '15px', fontFamily: 'Arial Black, sans-serif',
         color: '#00ff88',
       }
     ).setOrigin(0.5).setScrollFactor(0).setDepth(12)
       .setInteractive({ useHandCursor: true });
 
     // Pen icon hint
-    this.add.text(FIELD_X + FIELD_W - 10, FIELD_Y + 2, '✏', {
-      fontSize: '12px', color: '#224422',
+    this.add.text(FIELD_X + FIELD_W - 8, FIELD_Y, '✏', {
+      fontSize: '10px', color: '#224422',
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(12);
 
     this.betFieldBg.on('pointerdown', () => this._openBetInput());
@@ -110,9 +105,9 @@ export default class UIScene extends Phaser.Scene {
     // ── Auto-cashout field ─────────────────────────────────────────────────
 
     const AC_X = 14;
-    const AC_Y = height - 54;
-    const AC_W = 220;
-    const AC_H = 28;
+    const AC_Y = height - 52;
+    const AC_W = 190;
+    const AC_H = 22;
 
     this.acFieldBg = this.add.rectangle(
       AC_X + AC_W / 2, AC_Y, AC_W, AC_H, 0x0d0d1a, 1
@@ -120,12 +115,13 @@ export default class UIScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(11)
       .setInteractive({ useHandCursor: true });
 
-    this.add.text(AC_X + AC_W / 2, AC_Y - 7, 'AUTO CASHOUT AT', {
-      fontSize: '8px', color: '#333355',
-    }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(12);
+    // Label inside left edge
+    this.add.text(AC_X + 8, AC_Y, 'AUTO OUT:', {
+      fontSize: '8px', color: '#444466',
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(12);
 
-    this.acText = this.add.text(AC_X + AC_W / 2, AC_Y + 1, 'OFF', {
-      fontSize: '14px', fontFamily: 'Arial Black, sans-serif', color: '#333366',
+    this.acText = this.add.text(AC_X + AC_W / 2 + 20, AC_Y, 'OFF', {
+      fontSize: '12px', fontFamily: 'Arial Black, sans-serif', color: '#333366',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(12)
       .setInteractive({ useHandCursor: true });
 
@@ -136,10 +132,10 @@ export default class UIScene extends Phaser.Scene {
 
     // ── BET / ACTION button ────────────────────────────────────────────────
 
-    this.actionBtn = this.add.text(width - 14, height - 80, 'BET', {
-      fontSize: '26px', fontFamily: 'Arial Black, sans-serif',
+    this.actionBtn = this.add.text(width - 14, height - 75, 'BET', {
+      fontSize: '24px', fontFamily: 'Arial Black, sans-serif',
       color: '#000000', backgroundColor: '#00ff88',
-      padding: { x: 22, y: 10 },
+      padding: { x: 18, y: 8 },
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(11)
       .setInteractive({ useHandCursor: true });
 
@@ -149,9 +145,9 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Auto-bet toggle ────────────────────────────────────────────────────
 
-    const TGL_W = 52; const TGL_H = 22;
+    const TGL_W = 52; const TGL_H = 20;
     const TGL_X = width - 14 - TGL_W;
-    const TGL_Y = height - 46;
+    const TGL_Y = height - 44;
 
     this._autoBetGfx = this.add.graphics().setScrollFactor(0).setDepth(12);
 
@@ -291,10 +287,10 @@ export default class UIScene extends Phaser.Scene {
     const scaleY = rect.height / height;
 
     // Match the bet field rectangle position
-    const fieldW = 220;
-    const fieldH = 42;
+    const fieldW = 190;
+    const fieldH = 26;
     const fieldCX = 14 + fieldW / 2;
-    const fieldCY = height - 88;
+    const fieldCY = height - 82;
 
     const screenLeft = rect.left + (fieldCX - fieldW / 2) * scaleX;
     const screenTop = rect.top + (fieldCY - fieldH / 2) * scaleY;
@@ -361,9 +357,9 @@ export default class UIScene extends Phaser.Scene {
     const scaleX = rect.width / width;
     const scaleY = rect.height / height;
 
-    const AC_W = 220; const AC_H = 28;
+    const AC_W = 190; const AC_H = 22;
     const AC_CX = 14 + AC_W / 2;
-    const AC_CY = height - 54;
+    const AC_CY = height - 52;
 
     const screenLeft = rect.left + (AC_CX - AC_W / 2) * scaleX;
     const screenTop  = rect.top  + (AC_CY - AC_H / 2) * scaleY;
