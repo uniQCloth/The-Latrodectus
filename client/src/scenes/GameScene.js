@@ -28,6 +28,9 @@ export default class GameScene extends Phaser.Scene {
     this._floodWarnActive = false;
     this._floodGen       = 0;         // generation counter — invalidates stale flood callbacks
     this._activeFloodGfx = null;      // ref to current flood wave graphics for early cleanup
+    this._slipTimer      = Phaser.Math.Between(6000, 14000);
+    this._slipping       = false;
+    this._slipTween      = null;
 
     // ── Pipe geometry ─────────────────────────────────────────────────────
     this.drawWorldBackground();
@@ -88,11 +91,15 @@ export default class GameScene extends Phaser.Scene {
   drawWorldBackground() {
     const { width } = this.scale;
     const bg = this.add.graphics().setDepth(0);
-    bg.fillStyle(0x111111, 1);
+    // Outer wall backing (very dark — walls are drawn on top)
+    bg.fillStyle(0x1a1a1a, 1);
     bg.fillRect(0, -60000, width, 70000);
-    // Slightly lighter interior channel
-    bg.fillStyle(0x1c1c1c, 1);
+    // Inner pipe channel — proper mid-grey concrete
+    bg.fillStyle(0x525252, 1);
     bg.fillRect(PIPE_WALL, -60000, width - PIPE_WALL * 2, 70000);
+    // Subtle centre-line shadow for depth
+    bg.fillStyle(0x3e3e3e, 0.35);
+    bg.fillRect(width / 2 - 18, -60000, 36, 70000);
   }
 
   // ── Pipe seams — WORLD SPACE ────────────────────────────────────────────
@@ -1127,6 +1134,47 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // ── Spider silk slip — occasional loss-of-grip slide ─────────────────────
+
+  _triggerSilkSlip() {
+    if (!this.spider?.isAlive || this._slipping || this.gameOver || !this.serverMode) return;
+    this._slipping = true;
+    const slipDist = Phaser.Math.Between(55, 140);
+    sound.playSlip();
+    this.cameras.main.shake(120, 0.004);
+    this._slipTween = this.tweens.add({
+      targets: this.spider,
+      visualSlipY: slipDist,
+      duration: 220 + Phaser.Math.Between(0, 120),
+      ease: 'Power2',
+      onComplete: () => {
+        if (!this.spider?.isAlive) {
+          this.spider.visualSlipY = 0;
+          this._slipping = false;
+          return;
+        }
+        // Brief hang before scrambling back up
+        this.time.delayedCall(160, () => {
+          if (!this.spider?.isAlive) {
+            this.spider.visualSlipY = 0;
+            this._slipping = false;
+            return;
+          }
+          this._slipTween = this.tweens.add({
+            targets: this.spider,
+            visualSlipY: 0,
+            duration: 400,
+            ease: 'Back.easeOut',
+            onComplete: () => {
+              this._slipping = false;
+              this._slipTween = null;
+            },
+          });
+        });
+      },
+    });
+  }
+
   // ── Server crash — JUMP SCARE + TSUNAMI sweeps the pipe ─────────────────
 
   triggerServerFlood() {
@@ -1477,6 +1525,13 @@ export default class GameScene extends Phaser.Scene {
     this._floodWarnActive = false;
     this._floodWarnTimer  = Phaser.Math.Between(14000, 28000);
     this._bathroomTimer   = Phaser.Math.Between(12000, 26000);
+
+    // Reset silk slip state
+    this.tweens.killTweensOf(this.spider);
+    this.spider.visualSlipY = 0;
+    this._slipping  = false;
+    this._slipTween = null;
+    this._slipTimer = Phaser.Math.Between(6000, 14000);
   }
 
   // ── Auto climb (server mode) ─────────────────────────────────────────────
@@ -1539,6 +1594,13 @@ export default class GameScene extends Phaser.Scene {
       if (this._floodWarnTimer <= 0 && !this._floodWarnActive) {
         this._floodWarnTimer = Phaser.Math.Between(16000, 35000);
         this.triggerFloodWarning();
+      }
+
+      // Silk slip — spider occasionally loses grip and slides
+      this._slipTimer -= delta;
+      if (this._slipTimer <= 0) {
+        this._slipTimer = Phaser.Math.Between(6000, 14000);
+        this._triggerSilkSlip();
       }
     }
 

@@ -192,6 +192,14 @@ export default class SoundManager {
     this._tone(900, 'square', 0.1, 0.15, 0.1);
   }
 
+  playSlip() {
+    // Silk friction squeak — descending pitch like thread sliding through spinnerets
+    this._tone(1100, 'sine', 0.04, 0.13);
+    this._tone(750,  'sine', 0.06, 0.11, 0.03);
+    this._tone(380,  'sine', 0.07, 0.08, 0.07);
+    this._noise(0.05, 0.07, 0.02);
+  }
+
   playTick() {
     this._tone(800, 'sine', 0.03, 0.05);
   }

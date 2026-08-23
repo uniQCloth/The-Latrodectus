@@ -22,7 +22,8 @@ export default class Spider {
     // Visual representation — screen-space so they're never culled by camera
     this.gfx     = scene.add.graphics().setScrollFactor(0).setDepth(10);
     this.silkGfx = scene.add.graphics().setScrollFactor(0).setDepth(9);
-    this.silkOriginY = y;
+    this.silkOriginY  = y;
+    this.visualSlipY  = 0;  // screen-space offset applied during silk-slip animation
     this.drawSpider();
 
     // Input
@@ -124,12 +125,14 @@ export default class Spider {
     // Screen-space: compute screen position from world + camera scroll
     const camera = this.scene.cameras.main;
     const sx = this.sprite.x - camera.scrollX;
-    const sy = this.sprite.y - camera.scrollY;
+    const sy = this.sprite.y - camera.scrollY + this.visualSlipY;
     this.silkGfx.clear();
     if (!this.isAlive) return;
     const vx = this.sprite.body?.velocity?.x ?? 0;
     const sway = vx * 0.04;
-    this.silkGfx.lineStyle(1.5, 0xbbbbbb, 0.4);
+    // Silk looks tighter / more visible when spider is slipping
+    const slipping = this.visualSlipY > 5;
+    this.silkGfx.lineStyle(slipping ? 2.5 : 1.5, slipping ? 0xdddddd : 0xbbbbbb, slipping ? 0.65 : 0.4);
     this.silkGfx.beginPath();
     this.silkGfx.moveTo(sx, -60); // anchor just above screen top
     this.silkGfx.lineTo(sx + sway * 20, sy - 80);
@@ -141,7 +144,7 @@ export default class Spider {
     // Screen-space: convert world position to screen coords
     const camera = this.scene.cameras.main;
     const x = this.sprite.x - camera.scrollX;
-    const y = this.sprite.y - camera.scrollY;
+    const y = this.sprite.y - camera.scrollY + this.visualSlipY;
     const t = this.scene.time.now;
     this.gfx.clear();
 
