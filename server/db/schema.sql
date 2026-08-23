@@ -7,14 +7,27 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS players (
   id            SERIAL PRIMARY KEY,
   uuid          UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
-  username      VARCHAR(50) NOT NULL DEFAULT 'Spider',
+  email         VARCHAR(255) UNIQUE,
+  password_hash VARCHAR(255),
+  username      VARCHAR(50) UNIQUE NOT NULL DEFAULT 'Spider',
   balance       DECIMAL(12,2) NOT NULL DEFAULT 1000.00,
   total_wagered DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   total_won     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   rounds_played INTEGER NOT NULL DEFAULT 0,
+  age_verified  BOOLEAN NOT NULL DEFAULT FALSE,
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   last_seen     TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrations for existing databases (safe to run repeatedly)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='players' AND column_name='email') THEN
+    ALTER TABLE players ADD COLUMN email VARCHAR(255) UNIQUE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='players' AND column_name='password_hash') THEN
+    ALTER TABLE players ADD COLUMN password_hash VARCHAR(255);
+  END IF;
+END $$;
 
 -- ── Rounds ───────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rounds (

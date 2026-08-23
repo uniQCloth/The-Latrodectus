@@ -3,6 +3,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const db = require('./db/db');
 const queries = require('./db/queries');
 const { RoundManager } = require('./game/RoundManager');
@@ -10,6 +12,25 @@ const provablyFair = require('./game/ProvablyFair');
 const tron = require('./payments/TronService');
 const depositVerifier = require('./payments/DepositVerifier');
 const withdrawalProcessor = require('./payments/WithdrawalProcessor');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'wsm-dev-secret-change-in-prod';
+const BCRYPT_ROUNDS = 10;
+
+// ─── In-memory auth store (fallback when DB is not configured) ───────────────
+// email (lowercase) → { uuid, username, passwordHash, balance }
+const memAuthStore = new Map();
+
+function generateUUID() {
+  return require('crypto').randomUUID();
+}
+
+function signToken(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+}
+
+function verifyToken(token) {
+  try { return jwt.verify(token, JWT_SECRET); } catch { return null; }
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -25,6 +46,110 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+// ─── Auth Endpoints ───────────────────────────────────────────────────────────
+
+app.post('/auth/register', async (req, res) => {
+  const { email, password, username } = req.body;
+
+  if (!email || !password || !username)
+    return res.status(400).json({ error: 'email, password and username are required' });
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return res.status(400).json({ error: 'Invalid email address' });
+
+  if (password.length < 6)
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+  const cleanUsername = username.trim();
+  if (cleanUsername.length < 3 || cleanUsername.length > 20)
+    return res.status(400).json({ error: 'Username must be 3–20 characters' });
+  if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername))
+    return res.status(400).json({ error: 'Username: letters, numbers and _ only' });
+
+  const lowerEmail = email.toLowerCase();
+  const lowerUser  = cleanUsername.toLowerCase();
+
+  const RESERVED = new Set(['admin','system','house','casino','widow','spider','support','bot','mod']);
+  if (RESERVED.has(lowerUser))
+    return res.status(400).json({ error: `"${cleanUsername}" is a reserved name` });
+
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const uuid = generateUUID();
+
+  if (db.isEnabled()) {
+    // Check email uniqueness
+    const emailCheck = await queries.getPlayerByEmail(lowerEmail);
+    if (emailCheck?.rows?.length > 0)
+      return res.status(409).json({ error: 'An account with that email already exists' });
+
+    // Check username uniqueness
+    const userCheck = await queries.getPlayerByUsername(cleanUsername);
+    if (userCheck?.rows?.length > 0)
+      return res.status(409).json({ error: `"${cleanUsername}" is already taken` });
+
+    const result = await queries.createAuthPlayer(uuid, lowerEmail, passwordHash, cleanUsername);
+    if (!result?.rows?.[0])
+      return res.status(500).json({ error: 'Failed to create account' });
+
+    const player = result.rows[0];
+    // Register in username registry for socket use
+    usernameRegistry.set(lowerUser, uuid);
+    uuidUsernameMap.set(uuid, cleanUsername);
+
+    const token = signToken({ uuid: player.uuid, username: player.username, playerId: player.id });
+    return res.json({ token, username: player.username });
+  } else {
+    // In-memory mode
+    if (memAuthStore.has(lowerEmail))
+      return res.status(409).json({ error: 'An account with that email already exists' });
+    if (usernameRegistry.has(lowerUser))
+      return res.status(409).json({ error: `"${cleanUsername}" is already taken` });
+
+    memAuthStore.set(lowerEmail, { uuid, username: cleanUsername, passwordHash, balance: 1000 });
+    usernameRegistry.set(lowerUser, uuid);
+    uuidUsernameMap.set(uuid, cleanUsername);
+
+    const token = signToken({ uuid, username: cleanUsername });
+    return res.json({ token, username: cleanUsername });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ error: 'email and password are required' });
+
+  const lowerEmail = email.toLowerCase();
+
+  if (db.isEnabled()) {
+    const result = await queries.getPlayerByEmail(lowerEmail);
+    const player = result?.rows?.[0];
+    if (!player) return res.status(401).json({ error: 'No account found with that email' });
+    if (!player.password_hash) return res.status(401).json({ error: 'Account has no password set — contact support' });
+
+    const match = await bcrypt.compare(password, player.password_hash);
+    if (!match) return res.status(401).json({ error: 'Incorrect password' });
+
+    // Refresh registry in case of server restart
+    if (!uuidUsernameMap.has(player.uuid)) {
+      uuidUsernameMap.set(player.uuid, player.username);
+      usernameRegistry.set(player.username.toLowerCase(), player.uuid);
+    }
+
+    const token = signToken({ uuid: player.uuid, username: player.username, playerId: player.id });
+    return res.json({ token, username: player.username });
+  } else {
+    const user = memAuthStore.get(lowerEmail);
+    if (!user) return res.status(401).json({ error: 'No account found with that email' });
+
+    const match = await bcrypt.compare(password, user.passwordHash);
+    if (!match) return res.status(401).json({ error: 'Incorrect password' });
+
+    const token = signToken({ uuid: user.uuid, username: user.username });
+    return res.json({ token, username: user.username });
+  }
+});
 
 // ─── REST Endpoints ──────────────────────────────────────────────────────────
 
@@ -190,15 +315,46 @@ function systemChat(text) {
   io.emit('chat:message', msg);
 }
 
+// ─── Username Registry ────────────────────────────────────────────────────────
+
+const usernameRegistry = new Map(); // lowercase_username → uuid (uniqueness guard)
+const uuidUsernameMap  = new Map(); // uuid → original-case username (returning player lookup)
+
+const RESERVED_NAMES = new Set(['admin','system','house','casino','widow','spider','support','bot','moderator','mod']);
+
+async function seedUsernameRegistry() {
+  if (!db.isEnabled()) return;
+  try {
+    const res = await db.query('SELECT uuid, username FROM players WHERE username IS NOT NULL AND uuid IS NOT NULL');
+    if (res?.rows) {
+      res.rows.forEach(({ uuid, username }) => {
+        if (uuid && username) {
+          usernameRegistry.set(username.toLowerCase(), uuid);
+          uuidUsernameMap.set(uuid, username);
+        }
+      });
+      console.log(`[Username] Seeded ${res.rows.length} usernames from DB`);
+    }
+  } catch (err) {
+    console.error('[Username] Seed failed:', err.message);
+  }
+}
+
 // ─── Socket.io ───────────────────────────────────────────────────────────────
 
 const roundManager = new RoundManager(io, { onCrash: systemChat, onRoundStart: systemChat });
 
 io.on('connection', async (socket) => {
-  console.log(`[+] ${socket.id} connected`);
+  // Verify JWT from handshake
+  const rawToken = socket.handshake.query.token || null;
+  let tokenPayload = rawToken ? verifyToken(rawToken) : null;
 
-  const username = socket.handshake.query.username || null;
-  await roundManager.addPlayer(socket.id, username);
+  // Fallback: legacy uuid query param
+  const rawUuid = tokenPayload?.uuid || socket.handshake.query.uuid || null;
+  let resolvedUsername = tokenPayload?.username || (rawUuid ? uuidUsernameMap.get(rawUuid) : null);
+
+  console.log(`[+] ${socket.id} connected${resolvedUsername ? ` as ${resolvedUsername}` : ' (unauthenticated)'}`);
+  await roundManager.addPlayer(socket.id, resolvedUsername, rawUuid);
 
   socket.emit('game:state', roundManager.getState());
 
@@ -211,9 +367,10 @@ io.on('connection', async (socket) => {
   // Send chat history to new connection
   socket.emit('chat:history', chatHistory);
 
-  // Announce join
-  const joinName = player?.username || socket.id.slice(0, 6);
-  systemChat(`🕷 ${joinName} joined the game`);
+  // Announce join (only if they have a username — new players see this after claiming)
+  if (resolvedUsername) {
+    systemChat(`🕷 ${resolvedUsername} joined the game`);
+  }
 
   // Chat message handler
   socket.on('chat:send', ({ text }) => {
@@ -253,7 +410,53 @@ io.on('connection', async (socket) => {
 
   socket.on('cashout', () => {
     const result = roundManager.cashOut(socket.id);
-    if (!result.ok) socket.emit('cashout:error', { error: result.error });
+    if (!result.ok) {
+      socket.emit('cashout:error', { error: result.error });
+    } else {
+      // Announce cashout in chat
+      const cashPlayer = roundManager.getPlayer(socket.id);
+      const cashName = cashPlayer?.username || socket.id.slice(0, 6);
+      systemChat(`💸 ${cashName} cashed out at ${result.multiplier?.toFixed(2) ?? '?'}× (+$${result.payout?.toFixed(2) ?? '?'})`);
+    }
+  });
+
+  // ── Username claim ────────────────────────────────────────────────────────
+  socket.on('username:claim', async ({ uuid, username }) => {
+    if (typeof username !== 'string') {
+      return socket.emit('username:taken', { error: 'Invalid username' });
+    }
+    const clean = username.trim();
+    if (clean.length < 3 || clean.length > 20) {
+      return socket.emit('username:taken', { error: 'Username must be 3–20 characters' });
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(clean)) {
+      return socket.emit('username:taken', { error: 'Letters, numbers and _ only' });
+    }
+    const lower = clean.toLowerCase();
+    if (RESERVED_NAMES.has(lower)) {
+      return socket.emit('username:taken', { error: `"${clean}" is a reserved name` });
+    }
+    if (usernameRegistry.has(lower)) {
+      return socket.emit('username:taken', { error: `"${clean}" is already taken — try another` });
+    }
+
+    // Register the username permanently
+    const claimUuid = uuid || socket.id;
+    usernameRegistry.set(lower, claimUuid);
+    uuidUsernameMap.set(claimUuid, clean);
+
+    // Update the live player record
+    const claimPlayer = roundManager.getPlayer(socket.id);
+    if (claimPlayer) claimPlayer.username = clean;
+
+    // Persist to DB
+    if (db.isEnabled() && uuid) {
+      queries.upsertPlayer(uuid, clean).catch(() => {});
+    }
+
+    socket.emit('username:claimed', { username: clean });
+    systemChat(`🕷 ${clean} joined for the first time — welcome!`);
+    console.log(`[Username] Claimed: "${clean}" by uuid=${claimUuid}`);
   });
 
   socket.on('disconnect', () => {
@@ -268,6 +471,7 @@ io.on('connection', async (socket) => {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 db.init(); // no-op if DATABASE_URL not set
+db.isEnabled() && setTimeout(seedUsernameRegistry, 500); // seed after pool is ready
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {

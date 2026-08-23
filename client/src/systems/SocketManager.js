@@ -9,9 +9,14 @@ class SocketManager {
     this.connected = false;
   }
 
-  connect(username) {
+  connect(username, uuid, token) {
+    if (this.socket) return; // already connected — prevent double-connect
+    const query = {};
+    if (username) query.username = username;
+    if (uuid)     query.uuid     = uuid;
+    if (token)    query.token    = token;
     this.socket = io(SERVER_URL, {
-      query: { username },
+      query,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 10,
@@ -44,6 +49,8 @@ class SocketManager {
       'chat:message', 'chat:history', 'chat:error',
       // Wallet events
       'wallet:deposit:confirmed', 'wallet:withdraw:confirmed',
+      // Username events
+      'username:claimed', 'username:taken', 'username:needed', 'username:restored',
     ];
     gameEvents.forEach(ev => {
       this.socket.on(ev, (data) => this._emit(ev, data));

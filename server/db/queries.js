@@ -103,8 +103,34 @@ async function getLeaderboard() {
   return db.query('SELECT * FROM leaderboard LIMIT 20');
 }
 
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+async function createAuthPlayer(uuid, email, passwordHash, username) {
+  return db.query(
+    `INSERT INTO players (uuid, email, password_hash, username, age_verified)
+     VALUES ($1, $2, $3, $4, TRUE)
+     RETURNING id, uuid, username, balance`,
+    [uuid, email.toLowerCase(), passwordHash, username]
+  );
+}
+
+async function getPlayerByEmail(email) {
+  return db.query(
+    'SELECT * FROM players WHERE email = $1',
+    [email.toLowerCase()]
+  );
+}
+
+async function getPlayerByUsername(username) {
+  return db.query(
+    'SELECT id FROM players WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+}
+
 module.exports = {
   upsertPlayer, getPlayer, updateBalance,
   insertRound, closeRound, getRecentRounds,
   insertBet, settleBet, getPlayerBetHistory, getLeaderboard,
+  createAuthPlayer, getPlayerByEmail, getPlayerByUsername,
 };

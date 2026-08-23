@@ -26,19 +26,16 @@ class RoundManager {
 
   // ─── Player Management ────────────────────────────────────────────────────
 
-  async addPlayer(socketId, username) {
-    const displayName = username || `Spider_${socketId.slice(0, 5)}`;
-    const playerData = { username: displayName, balance: 1000.00, playerId: null, uuid: null };
+  async addPlayer(socketId, username, uuid = null) {
+    const playerData = { username: username || null, balance: 1000.00, playerId: null, uuid };
     this.players.set(socketId, playerData);
 
-    // Persist to DB if enabled
-    if (db.isEnabled()) {
-      const uuid = require('crypto').randomUUID();
-      playerData.uuid = uuid;
-      const res = await queries.upsertPlayer(uuid, displayName);
+    // Restore balance from DB for returning players
+    if (db.isEnabled() && uuid && username) {
+      const res = await queries.upsertPlayer(uuid, username);
       if (res?.rows?.[0]) {
         playerData.playerId = res.rows[0].id;
-        playerData.balance = parseFloat(res.rows[0].balance);
+        playerData.balance  = parseFloat(res.rows[0].balance);
       }
     }
   }
@@ -135,14 +132,6 @@ class RoundManager {
     if (db.isEnabled() && bet.betId && player?.playerId) {
       queries.settleBet({ betId: bet.betId, cashedOut: true, cashoutAt: multiplier, payout });
       queries.updateBalance(player.playerId, player.balance, 0, payout);
-    }
-
-    // Announce big wins in chat
-    if (multiplier >= 5) {
-      const name = player?.username || socketId.slice(0, 6);
-      this._hooks.onRoundStart?.(
-        `🤑 ${name} cashed out at ${multiplier.toFixed(2)}× (+$${payout.toFixed(2)})`
-      );
     }
 
     return { ok: true, multiplier, payout };

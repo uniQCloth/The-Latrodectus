@@ -26,6 +26,7 @@ export default class UIScene extends Phaser.Scene {
     this._acInputEl = null;
     this.autoBetEnabled = false;
     this.autoBetRoundsLeft = 0;
+    this._localHistory = [];
 
     // ── Background panels ──────────────────────────────────────────────────
 
@@ -528,6 +529,10 @@ export default class UIScene extends Phaser.Scene {
     socket.on('round:crashed', ({ crashPoint, secretSeed, roundId }) => {
       this.state = STATES.RESULT;
       this.enterResultUI(crashPoint, secretSeed, roundId);
+      // Update history bar immediately — don't wait for server history:update
+      this._localHistory.unshift({ crashPoint });
+      if (this._localHistory.length > 8) this._localHistory.pop();
+      this.updateHistoryBar(this._localHistory);
       // Sound handled by triggerServerFlood() via playJumpScareCrash()
     });
 

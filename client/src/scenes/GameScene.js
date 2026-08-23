@@ -26,6 +26,8 @@ export default class GameScene extends Phaser.Scene {
     this._bathroomTimer  = Phaser.Math.Between(15000, 30000); // bathroom openings
     this._floodWarnTimer = Phaser.Math.Between(12000, 22000); // fake flood warnings
     this._floodWarnActive = false;
+    this._floodGen       = 0;         // generation counter — invalidates stale flood callbacks
+    this._activeFloodGfx = null;      // ref to current flood wave graphics for early cleanup
 
     // ── Pipe geometry ─────────────────────────────────────────────────────
     this.drawWorldBackground();
@@ -75,7 +77,10 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('server:playing',  () => { this.gameOver = false; this.serverMode = true; });
     this.events.on('server:crashed',  () => { if (this.spider.isAlive) this.triggerServerFlood(); });
 
-    socket.connect('Player');
+    // Connect socket — no-op if already connected; passes JWT for server auth
+    const savedToken = localStorage.getItem('wsm_token') || null;
+    const savedName  = localStorage.getItem('wsm_username') || 'Player';
+    socket.connect(savedName, null, savedToken);
   }
 
   // ── World background — GREY pipe interior ──────────────────────────────
@@ -220,11 +225,11 @@ export default class GameScene extends Phaser.Scene {
 
     if (type === 0) {
       // ── Water drop — wobbles sideways mid-fall, splats on landing ──
-      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
-      const drip = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(10, 60);
+      const drip = this.add.graphics().setScrollFactor(0).setDepth(4);
       drip.x = x; drip.y = startY;
       const fallDur = Phaser.Math.Between(800, 2000);
-      const targetY = camera.scrollY + height + 20;
+      const targetY = height +20;
       const baseX = x;
       this.tweens.add({
         targets: drip,
@@ -254,9 +259,9 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 1) {
       // ── Bubble — iridescent wobble shape, rises, glint highlight ──
-      const startY = camera.scrollY + height + Phaser.Math.Between(0, 50);
+      const startY = height +Phaser.Math.Between(0, 50);
       const r = Phaser.Math.Between(4, 11);
-      const bub = this.add.graphics().setDepth(4);
+      const bub = this.add.graphics().setScrollFactor(0).setDepth(4);
       bub.x = x; bub.y = startY;
       const iColors = [0x77aacc, 0xaa77cc, 0x77ccaa, 0xccaa77];
       let bTick = 0;
@@ -264,7 +269,7 @@ export default class GameScene extends Phaser.Scene {
       const driftAmp = Phaser.Math.Between(10, 22);
       this.tweens.add({
         targets: bub,
-        y: camera.scrollY - 60,
+        y: -60,
         duration: Phaser.Math.Between(2200, 4200),
         ease: 'Sine.easeIn',
         onUpdate: () => {
@@ -286,16 +291,16 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 2) {
       // ── Web thread — oscillating pendulum sine drift ──
-      const startY = camera.scrollY - Phaser.Math.Between(10, 80);
+      const startY = -Phaser.Math.Between(10, 80);
       const len = Phaser.Math.Between(20, 55);
-      const web = this.add.graphics().setDepth(4);
+      const web = this.add.graphics().setScrollFactor(0).setDepth(4);
       web.x = x; web.y = startY;
       const baseX = x;
       let wTick = 0;
       const amp = Phaser.Math.FloatBetween(8, 20);
       this.tweens.add({
         targets: web,
-        y: camera.scrollY + height + 70,
+        y: height +70,
         duration: Phaser.Math.Between(3000, 5500),
         ease: 'Linear',
         onUpdate: () => {
@@ -317,17 +322,17 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 3) {
       // ── Rust flake — triangle shape, tumbles ──
-      const startY = camera.scrollY - Phaser.Math.Between(5, 50);
+      const startY = -Phaser.Math.Between(5, 50);
       const sz = Phaser.Math.FloatBetween(2, 6);
       const col = Phaser.Utils.Array.GetRandom([0x996633, 0x774422, 0x886644, 0xaa8855, 0x665533]);
-      const flake = this.add.graphics().setDepth(4);
+      const flake = this.add.graphics().setScrollFactor(0).setDepth(4);
       flake.x = x; flake.y = startY;
       let fTick = 0;
       const drift = Phaser.Math.Between(-40, 40);
       const baseX = x;
       this.tweens.add({
         targets: flake,
-        y: camera.scrollY + height + 60,
+        y: height +60,
         duration: Phaser.Math.Between(1600, 3400),
         ease: 'Power1',
         onUpdate: (tween) => {
@@ -345,8 +350,8 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 4) {
       // ── Coin — realistic 3D flip (scaleX cosine oscillation) ──
-      const startY = camera.scrollY - Phaser.Math.Between(20, 80);
-      const coin = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(20, 80);
+      const coin = this.add.graphics().setScrollFactor(0).setDepth(4);
       coin.x = x; coin.y = startY;
       let cTick = 0;
       const baseX = x;
@@ -354,7 +359,7 @@ export default class GameScene extends Phaser.Scene {
       const spinRate = Phaser.Math.FloatBetween(0.15, 0.28);
       this.tweens.add({
         targets: coin,
-        y: camera.scrollY + height + 70,
+        y: height +70,
         duration: Phaser.Math.Between(1400, 3000),
         ease: 'Power1',
         onUpdate: (tween) => {
@@ -390,15 +395,15 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 5) {
       // ── Chewing gum — stretchy wobble with dangling thread ──
-      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
-      const gum = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(10, 60);
+      const gum = this.add.graphics().setScrollFactor(0).setDepth(4);
       gum.x = x; gum.y = startY;
       const col = Phaser.Utils.Array.GetRandom([0xdd88aa, 0xcc7799, 0xccaacc, 0xddaa88]);
       let gTick = 0;
       const baseX = x;
       this.tweens.add({
         targets: gum,
-        y: camera.scrollY + height + 50,
+        y: height +50,
         duration: Phaser.Math.Between(2800, 5000),
         ease: 'Linear',
         onUpdate: () => {
@@ -423,8 +428,8 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 6) {
       // ── Fly — multi-frequency X drift + wing flap animation ──
-      const startY = camera.scrollY + Phaser.Math.Between(50, height - 60);
-      const fly = this.add.graphics().setDepth(5);
+      const startY = Phaser.Math.Between(50, height - 60);
+      const fly = this.add.graphics().setScrollFactor(0).setDepth(5);
       fly.x = x; fly.y = startY;
       const baseX = x;
       let flyTick = 0;
@@ -434,7 +439,7 @@ export default class GameScene extends Phaser.Scene {
       const phase2 = Phaser.Math.FloatBetween(0, Math.PI);
       this.tweens.add({
         targets: fly,
-        y: camera.scrollY - 50,
+        y: -50,
         duration: Phaser.Math.Between(3000, 5500),
         ease: 'Linear',
         onUpdate: () => {
@@ -463,15 +468,15 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 7) {
       // ── Toilet paper wad — unraveling strip grows over time ──
-      const startY = camera.scrollY - Phaser.Math.Between(20, 80);
-      const tp = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(20, 80);
+      const tp = this.add.graphics().setScrollFactor(0).setDepth(4);
       tp.x = x; tp.y = startY;
       let tpTick = 0;
       const baseX = x;
       const drift = Phaser.Math.Between(-15, 15);
       this.tweens.add({
         targets: tp,
-        y: camera.scrollY + height + 60,
+        y: height +60,
         duration: Phaser.Math.Between(3500, 6000),
         ease: 'Linear',
         onUpdate: (tween) => {
@@ -503,8 +508,8 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 8) {
       // ── Toothbrush tip — chain tween: ricochets off pipe wall mid-fall ──
-      const startY = camera.scrollY - Phaser.Math.Between(10, 50);
-      const tb = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(10, 50);
+      const tb = this.add.graphics().setScrollFactor(0).setDepth(4);
       tb.x = x; tb.y = startY;
       const hcol = Phaser.Utils.Array.GetRandom([0x4488cc, 0xcc4488, 0x44cc88, 0xcc8844]);
       const drawTB = () => {
@@ -524,7 +529,7 @@ export default class GameScene extends Phaser.Scene {
         tweens: [
           { x: bounceX, y: midY, duration: Phaser.Math.Between(300, 600), ease: 'Power1',
             angle: Phaser.Math.Between(-30, 30), onUpdate: drawTB },
-          { x: x + Phaser.Math.Between(-25, 25), y: camera.scrollY + height + 60,
+          { x: x + Phaser.Math.Between(-25, 25), y: height +60,
             duration: Phaser.Math.Between(400, 800), ease: 'Power2',
             angle: Phaser.Math.Between(60, 120), alpha: 0,
             onUpdate: drawTB, onComplete: () => tb.destroy() },
@@ -533,9 +538,9 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 9) {
       // ── Hair strand — wriggles with sine waves at different phases ──
-      const startY = camera.scrollY - Phaser.Math.Between(20, 80);
+      const startY = -Phaser.Math.Between(20, 80);
       const len = Phaser.Math.Between(50, 120);
-      const hair = this.add.graphics().setDepth(4);
+      const hair = this.add.graphics().setScrollFactor(0).setDepth(4);
       hair.x = x; hair.y = startY;
       const hairCol = Phaser.Utils.Array.GetRandom([0x221a10, 0x443322, 0x888880, 0xeeeecc, 0x1a1a1a]);
       const baseX = x;
@@ -543,7 +548,7 @@ export default class GameScene extends Phaser.Scene {
       const drift = Phaser.Math.FloatBetween(-20, 20);
       this.tweens.add({
         targets: hair,
-        y: camera.scrollY + height + 70,
+        y: height +70,
         duration: Phaser.Math.Between(4000, 7000),
         ease: 'Linear',
         onUpdate: (tween) => {
@@ -565,8 +570,8 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 10) {
       // ── Tooth — chain tween: bounces off pipe wall ──
-      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
-      const tooth = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(10, 60);
+      const tooth = this.add.graphics().setScrollFactor(0).setDepth(4);
       tooth.x = x; tooth.y = startY;
       const drawTooth = () => {
         tooth.clear();
@@ -584,7 +589,7 @@ export default class GameScene extends Phaser.Scene {
         tweens: [
           { x: bounceX, y: midY, angle: Phaser.Math.Between(-40, 40),
             duration: Phaser.Math.Between(280, 500), ease: 'Power1', onUpdate: drawTooth },
-          { x: x + Phaser.Math.Between(-30, 30), y: camera.scrollY + height + 60,
+          { x: x + Phaser.Math.Between(-30, 30), y: height +60,
             angle: Phaser.Math.Between(-120, 120), alpha: 0,
             duration: Phaser.Math.Between(350, 700), ease: 'Power2',
             onUpdate: drawTooth, onComplete: () => tooth.destroy() },
@@ -646,16 +651,16 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 12) {
       // ── Soap bubble — iridescent multi-color shimmer, rises, pops with ring flash ──
-      const startY = camera.scrollY + height + Phaser.Math.Between(0, 50);
+      const startY = height +Phaser.Math.Between(0, 50);
       const r = Phaser.Math.Between(7, 16);
-      const sb = this.add.graphics().setDepth(4);
+      const sb = this.add.graphics().setScrollFactor(0).setDepth(4);
       sb.x = x; sb.y = startY;
       const baseX = x;
       let sbTick = 0;
       const sbColors = [0xff88aa, 0x88aaff, 0x88ffcc, 0xffcc88, 0xcc88ff];
       this.tweens.add({
         targets: sb,
-        y: camera.scrollY - 80,
+        y: -80,
         duration: Phaser.Math.Between(3000, 5500),
         ease: 'Sine.easeIn',
         onUpdate: () => {
@@ -681,15 +686,15 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 13) {
       // ── Shampoo blob — squish wobble, translucent colored teardrop ──
-      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
+      const startY = -Phaser.Math.Between(10, 60);
       const col = Phaser.Utils.Array.GetRandom([0xeedd44, 0x44eecc, 0xff88cc, 0x88ccff, 0xaaff88]);
-      const shamp = this.add.graphics().setDepth(4);
+      const shamp = this.add.graphics().setScrollFactor(0).setDepth(4);
       shamp.x = x; shamp.y = startY;
       let shTick = 0;
       const baseX = x;
       this.tweens.add({
         targets: shamp,
-        y: camera.scrollY + height + 50,
+        y: height +50,
         duration: Phaser.Math.Between(2000, 4000),
         ease: 'Power1',
         onUpdate: () => {
@@ -708,15 +713,15 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 14) {
       // ── Band-aid — flutter rotation as it falls ──
-      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
-      const ba = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(10, 60);
+      const ba = this.add.graphics().setScrollFactor(0).setDepth(4);
       ba.x = x; ba.y = startY;
       let baTick = 0;
       const baseX = x;
       const drift = Phaser.Math.Between(-30, 30);
       this.tweens.add({
         targets: ba,
-        y: camera.scrollY + height + 60,
+        y: height +60,
         duration: Phaser.Math.Between(2500, 4500),
         ease: 'Linear',
         onUpdate: (tween) => {
@@ -735,16 +740,16 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 15) {
       // ── Earring — sparkle dots pulse, hook + gem shape ──
-      const startY = camera.scrollY - Phaser.Math.Between(10, 60);
+      const startY = -Phaser.Math.Between(10, 60);
       const gemCol = Phaser.Utils.Array.GetRandom([0xff4488, 0x4488ff, 0x44ffcc, 0xffcc44, 0xcc44ff]);
-      const ear = this.add.graphics().setDepth(4);
+      const ear = this.add.graphics().setScrollFactor(0).setDepth(4);
       ear.x = x; ear.y = startY;
       let eTick = 0;
       const baseX = x;
       const drift = Phaser.Math.Between(-20, 20);
       this.tweens.add({
         targets: ear,
-        y: camera.scrollY + height + 60,
+        y: height +60,
         duration: Phaser.Math.Between(2000, 4000),
         ease: 'Linear',
         onUpdate: (tween) => {
@@ -820,15 +825,15 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 17) {
       // ── Contact lens — translucent disc drifts slowly ──
-      const startY = camera.scrollY - Phaser.Math.Between(20, 60);
-      const cl = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(20, 60);
+      const cl = this.add.graphics().setScrollFactor(0).setDepth(4);
       cl.x = x; cl.y = startY;
       let clTick = 0;
       const baseX = x;
       const drift = Phaser.Math.Between(-25, 25);
       this.tweens.add({
         targets: cl,
-        y: camera.scrollY + height + 60,
+        y: height +60,
         duration: Phaser.Math.Between(4000, 7000),
         ease: 'Sine.easeIn',
         onUpdate: (tween) => {
@@ -847,15 +852,15 @@ export default class GameScene extends Phaser.Scene {
 
     } else if (type === 18) {
       // ── Cigarette butt — glowing orange tip, fast tumble ──
-      const startY = camera.scrollY - Phaser.Math.Between(5, 40);
-      const cig = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(5, 40);
+      const cig = this.add.graphics().setScrollFactor(0).setDepth(4);
       cig.x = x; cig.y = startY;
       let cigTick = 0;
       const baseX = x;
       const drift = Phaser.Math.Between(-35, 35);
       this.tweens.add({
         targets: cig,
-        y: camera.scrollY + height + 60,
+        y: height +60,
         duration: Phaser.Math.Between(700, 1600),
         ease: 'Power2',
         onUpdate: (tween) => {
@@ -874,15 +879,15 @@ export default class GameScene extends Phaser.Scene {
 
     } else {
       // ── Matchstick — spent head, tumbles ──
-      const startY = camera.scrollY - Phaser.Math.Between(5, 40);
-      const match = this.add.graphics().setDepth(4);
+      const startY = -Phaser.Math.Between(5, 40);
+      const match = this.add.graphics().setScrollFactor(0).setDepth(4);
       match.x = x; match.y = startY;
       let mTick = 0;
       const baseX = x;
       const drift = Phaser.Math.Between(-35, 35);
       this.tweens.add({
         targets: match,
-        y: camera.scrollY + height + 60,
+        y: height +60,
         duration: Phaser.Math.Between(900, 2000),
         ease: 'Power1',
         onUpdate: (tween) => {
@@ -1200,6 +1205,18 @@ export default class GameScene extends Phaser.Scene {
     }
     spray.y = -(height + 100);
 
+    // Track wave graphics so resetSpiderToGround can destroy them immediately
+    const floodGfx = [layerDeep, layerMain, layerBright, crest, spray];
+    this._activeFloodGfx = floodGfx;
+
+    // Capture generation — any reset() will increment _floodGen, invalidating this closure
+    const floodGen = ++this._floodGen;
+
+    const destroyFloodGfx = () => {
+      if (this._activeFloodGfx === floodGfx) this._activeFloodGfx = null;
+      floodGfx.forEach(g => { if (g?.scene) { this.tweens.killTweensOf(g); g.destroy(); } });
+    };
+
     // Animate wave rushing down
     this.tweens.add({ targets: layerDeep,   y: 0, duration: 380, delay: waveDelay,      ease: 'Power3' });
     this.tweens.add({ targets: layerMain,   y: 0, duration: 320, delay: waveDelay + 20, ease: 'Power3' });
@@ -1207,11 +1224,18 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({
       targets: [crest, spray], y: 0, duration: 250, delay: waveDelay + 50, ease: 'Power3',
       onComplete: () => {
+        // If a new round has already been reset, skip the die() — spider is already alive
+        if (this._floodGen !== floodGen) {
+          destroyFloodGfx();
+          return;
+        }
+
         this.spider.die('flood');
 
         // Rising bubbles through water column
         for (let i = 0; i < 22; i++) {
           this.time.delayedCall(i * 55, () => {
+            if (this._floodGen !== floodGen) return; // round reset — stop bubbles
             if (!layerMain.scene) return;
             const bx = PIPE_WALL + Phaser.Math.Between(0, innerW);
             const by = Phaser.Math.Between(height * 0.2, height);
@@ -1232,10 +1256,10 @@ export default class GameScene extends Phaser.Scene {
 
         // Drain water out after 2s
         this.time.delayedCall(2000, () => {
-          const all = [layerDeep, layerMain, layerBright, crest, spray];
+          if (this._floodGen !== floodGen) return; // already cleaned up by reset
           this.tweens.add({
-            targets: all, alpha: 0, duration: 1100,
-            onComplete: () => all.forEach(g => { if (g?.scene) g.destroy(); }),
+            targets: floodGfx, alpha: 0, duration: 1100,
+            onComplete: () => destroyFloodGfx(),
           });
         });
       },
@@ -1323,7 +1347,14 @@ export default class GameScene extends Phaser.Scene {
         fontSize: '52px', fontFamily: 'Arial Black, sans-serif',
         color: '#ffd700', stroke: '#000000', strokeThickness: 8, align: 'center',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(15);
-      this.tweens.add({ targets: winText, scaleX: { from: 0.5, to: 1.2 }, scaleY: { from: 0.5, to: 1.2 }, duration: 600, ease: 'Back.out' });
+      this.tweens.add({ targets: winText, scaleX: { from: 0.5, to: 1.2 }, scaleY: { from: 0.5, to: 1.2 }, duration: 600, ease: 'Back.out',
+        onComplete: () => {
+          this.time.delayedCall(2000, () => {
+            this.tweens.add({ targets: winText, alpha: 0, y: winText.y - 30, duration: 600,
+              onComplete: () => winText.destroy() });
+          });
+        },
+      });
     });
   }
 
@@ -1332,6 +1363,15 @@ export default class GameScene extends Phaser.Scene {
   resetSpiderToGround() {
     if (!this.spider) return;
     const { width, height } = this.scale;
+
+    // Invalidate any in-flight flood animation so its die() never fires
+    this._floodGen++;
+
+    // Immediately wipe flood wave graphics so spider is visible right now
+    if (this._activeFloodGfx) {
+      this._activeFloodGfx.forEach(g => { if (g?.scene) { this.tweens.killTweensOf(g); g.destroy(); } });
+      this._activeFloodGfx = null;
+    }
 
     if (this._deathOverlays) {
       this._deathOverlays.forEach(o => o?.destroy());
@@ -1347,8 +1387,6 @@ export default class GameScene extends Phaser.Scene {
     this.spider.silkGfx.setAlpha(1);
 
     this.spider.isAlive         = true;
-    this.spider.hoopSlipped     = false;
-    this.spider.airTime         = 0;
     this.spider.onGround        = false;
     this.spider.currentPlatform = null;
     this.spider.externalStunned = false;

@@ -7,9 +7,11 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
     "node-fetch": "^2.7.0",
     "pg": "^8.23.0",
     "socket.io": "^4.8.1",
