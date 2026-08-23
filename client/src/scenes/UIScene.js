@@ -23,15 +23,18 @@ export default class UIScene extends Phaser.Scene {
     this.currentMultiplier = 1.00;
     this.roundId = null;
     this._betInputEl = null;
+    this._acInputEl = null;
+    this.autoBetEnabled = false;
+    this.autoBetRoundsLeft = 0;
 
     // ── Background panels ──────────────────────────────────────────────────
 
     // Top HUD bar
     this.add.rectangle(width / 2, 45, width, 86, 0x000000, 0.8).setScrollFactor(0).setDepth(10);
 
-    // Bottom panel
-    this.add.rectangle(width / 2, height - 55, width, 104, 0x0d0d0d, 0.95).setScrollFactor(0).setDepth(10);
-    this.add.rectangle(width / 2, height - 55, width, 104, 0x000000, 0)
+    // Bottom panel — taller to fit auto-cashout + auto-bet toggle
+    this.add.rectangle(width / 2, height - 66, width, 128, 0x0d0d0d, 0.95).setScrollFactor(0).setDepth(10);
+    this.add.rectangle(width / 2, height - 66, width, 128, 0x000000, 0)
       .setStrokeStyle(1, 0x00ff88, 0.25).setScrollFactor(0).setDepth(10);
 
     // ── Top HUD ────────────────────────────────────────────────────────────
@@ -54,24 +57,24 @@ export default class UIScene extends Phaser.Scene {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
     // Connection dot
-    this.connDot = this.add.circle(width - 10, height - 110, 5, 0xff0000)
+    this.connDot = this.add.circle(width - 10, height - 122, 5, 0xff0000)
       .setScrollFactor(0).setDepth(11);
-    this.connLabel = this.add.text(width - 18, height - 117, 'OFFLINE', {
+    this.connLabel = this.add.text(width - 18, height - 129, 'OFFLINE', {
       fontSize: '9px', color: '#ff4444',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
     // ── Balance ────────────────────────────────────────────────────────────
 
-    this.balanceText = this.add.text(14, height - 100, '💰 $1000.00', {
+    this.balanceText = this.add.text(14, height - 118, '💰 $1000.00', {
       fontSize: '14px', color: '#ffd700', fontFamily: 'Arial Black, sans-serif',
     }).setScrollFactor(0).setDepth(11);
 
     // ── Bet amount field (clickable → opens number input) ──────────────────
 
     const FIELD_X = 14;
-    const FIELD_Y = height - 58;
+    const FIELD_Y = height - 88;
     const FIELD_W = 220;
-    const FIELD_H = 46;
+    const FIELD_H = 42;
 
     // Background pill
     this.betFieldBg = this.add.rectangle(
@@ -104,18 +107,100 @@ export default class UIScene extends Phaser.Scene {
     this.betFieldBg.on('pointerover', () => this.betFieldBg.setStrokeStyle(2, 0x00ff88, 1));
     this.betFieldBg.on('pointerout', () => this.betFieldBg.setStrokeStyle(1.5, 0x00ff88, 0.6));
 
+    // ── Auto-cashout field ─────────────────────────────────────────────────
+
+    const AC_X = 14;
+    const AC_Y = height - 54;
+    const AC_W = 220;
+    const AC_H = 28;
+
+    this.acFieldBg = this.add.rectangle(
+      AC_X + AC_W / 2, AC_Y, AC_W, AC_H, 0x0d0d1a, 1
+    ).setStrokeStyle(1, 0x4444aa, 0.5)
+      .setScrollFactor(0).setDepth(11)
+      .setInteractive({ useHandCursor: true });
+
+    this.add.text(AC_X + AC_W / 2, AC_Y - 7, 'AUTO CASHOUT AT', {
+      fontSize: '8px', color: '#333355',
+    }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(12);
+
+    this.acText = this.add.text(AC_X + AC_W / 2, AC_Y + 1, 'OFF', {
+      fontSize: '14px', fontFamily: 'Arial Black, sans-serif', color: '#333366',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(12)
+      .setInteractive({ useHandCursor: true });
+
+    this.acFieldBg.on('pointerdown', () => this._openAutoCashoutInput());
+    this.acText.on('pointerdown', () => this._openAutoCashoutInput());
+    this.acFieldBg.on('pointerover', () => this.acFieldBg.setStrokeStyle(1.5, 0x6666cc, 0.8));
+    this.acFieldBg.on('pointerout', () => this.acFieldBg.setStrokeStyle(1, 0x4444aa, 0.5));
+
     // ── BET / ACTION button ────────────────────────────────────────────────
 
-    this.actionBtn = this.add.text(width - 14, height - 58, 'BET', {
+    this.actionBtn = this.add.text(width - 14, height - 80, 'BET', {
       fontSize: '26px', fontFamily: 'Arial Black, sans-serif',
       color: '#000000', backgroundColor: '#00ff88',
-      padding: { x: 22, y: 12 },
+      padding: { x: 22, y: 10 },
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(11)
       .setInteractive({ useHandCursor: true });
 
     this.actionBtn.on('pointerdown', () => this.handleActionBtn());
     this.actionBtn.on('pointerover', () => this.actionBtn.setStyle({ backgroundColor: '#00cc66' }));
     this.actionBtn.on('pointerout', () => this.onActionBtnOut());
+
+    // ── Auto-bet toggle ────────────────────────────────────────────────────
+
+    const TGL_W = 52; const TGL_H = 22;
+    const TGL_X = width - 14 - TGL_W;
+    const TGL_Y = height - 46;
+
+    this._autoBetGfx = this.add.graphics().setScrollFactor(0).setDepth(12);
+
+    this.add.text(TGL_X - 5, TGL_Y, 'AUTO', {
+      fontSize: '9px', color: '#555555',
+    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(12);
+
+    this._autoBetCountText = this.add.text(TGL_X + TGL_W + 5, TGL_Y, '', {
+      fontSize: '9px', color: '#00ff88',
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(12);
+
+    const tglZone = this.add.zone(TGL_X, TGL_Y, TGL_W, TGL_H)
+      .setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    tglZone.on('pointerdown', () => this._toggleAutoBet());
+
+    this._drawAutoBetToggle = () => {
+      const g = this._autoBetGfx;
+      g.clear();
+      const on = this.autoBetEnabled;
+      g.fillStyle(on ? 0x008833 : 0x2a2a2a, 1);
+      g.fillRoundedRect(TGL_X, TGL_Y - TGL_H / 2, TGL_W, TGL_H, TGL_H / 2);
+      g.lineStyle(1, on ? 0x00ff88 : 0x444444, 0.7);
+      g.strokeRoundedRect(TGL_X, TGL_Y - TGL_H / 2, TGL_W, TGL_H, TGL_H / 2);
+      const circleX = on ? TGL_X + TGL_W - TGL_H / 2 : TGL_X + TGL_H / 2;
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(circleX, TGL_Y, TGL_H / 2 - 3);
+      // ON / OFF text inside pill
+      g.fillStyle(on ? 0x00ff88 : 0x555555, 0);
+      const labelX = on ? TGL_X + 8 : TGL_X + TGL_W - 8;
+      const pillLabel = on ? 'ON' : 'OFF';
+      // Re-use a cached text object to avoid creating per-draw
+      if (!this._tglPillText) {
+        this._tglPillText = this.add.text(labelX, TGL_Y, pillLabel, {
+          fontSize: '8px', color: on ? '#00ff88' : '#555555',
+        }).setOrigin(on ? 0 : 1, 0.5).setScrollFactor(0).setDepth(13);
+      } else {
+        this._tglPillText.setText(pillLabel)
+          .setColor(on ? '#00ff88' : '#555555')
+          .setX(labelX)
+          .setOrigin(on ? 0 : 1, 0.5);
+      }
+      // Rounds remaining counter
+      if (on && this.autoBetRoundsLeft > 0) {
+        this._autoBetCountText.setText(`${this.autoBetRoundsLeft}rds`);
+      } else {
+        this._autoBetCountText.setText('');
+      }
+    };
+    this._drawAutoBetToggle();
 
     // ── Round state overlays ───────────────────────────────────────────────
 
@@ -138,7 +223,7 @@ export default class UIScene extends Phaser.Scene {
 
     this.historySlots = [];
     for (let i = 0; i < 8; i++) {
-      const slot = this.add.text(width - 10 - i * 44, height - 10, '', {
+      const slot = this.add.text(width - 10 - i * 44, height - 18, '', {
         fontSize: '11px', color: '#ffffff',
         backgroundColor: '#333333',
         padding: { x: 4, y: 2 },
@@ -207,9 +292,9 @@ export default class UIScene extends Phaser.Scene {
 
     // Match the bet field rectangle position
     const fieldW = 220;
-    const fieldH = 46;
+    const fieldH = 42;
     const fieldCX = 14 + fieldW / 2;
-    const fieldCY = height - 58;
+    const fieldCY = height - 88;
 
     const screenLeft = rect.left + (fieldCX - fieldW / 2) * scaleX;
     const screenTop = rect.top + (fieldCY - fieldH / 2) * scaleY;
@@ -265,6 +350,107 @@ export default class UIScene extends Phaser.Scene {
     });
   }
 
+  // ─── Auto-cashout input ───────────────────────────────────────────────────
+
+  _openAutoCashoutInput() {
+    if (this._acInputEl) return;
+
+    const canvas = this.game.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const { width, height } = this.scale;
+    const scaleX = rect.width / width;
+    const scaleY = rect.height / height;
+
+    const AC_W = 220; const AC_H = 28;
+    const AC_CX = 14 + AC_W / 2;
+    const AC_CY = height - 54;
+
+    const screenLeft = rect.left + (AC_CX - AC_W / 2) * scaleX;
+    const screenTop  = rect.top  + (AC_CY - AC_H / 2) * scaleY;
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '1.01';
+    input.max = '1000';
+    input.step = '0.01';
+    input.placeholder = 'e.g. 2.50';
+    if (this.autoCashoutVal) input.value = this.autoCashoutVal.toFixed(2);
+
+    Object.assign(input.style, {
+      position: 'fixed',
+      left: `${screenLeft}px`,
+      top: `${screenTop}px`,
+      width: `${AC_W * scaleX}px`,
+      height: `${AC_H * scaleY}px`,
+      fontSize: `${Math.floor(14 * Math.min(scaleX, scaleY))}px`,
+      fontFamily: 'Arial Black, sans-serif',
+      fontWeight: 'bold',
+      color: '#8888ff',
+      background: '#0d0d1a',
+      border: '1.5px solid #6666cc',
+      borderRadius: '4px',
+      textAlign: 'center',
+      outline: 'none',
+      zIndex: '500',
+      boxSizing: 'border-box',
+      WebkitAppearance: 'none',
+      MozAppearance: 'textfield',
+    });
+
+    document.body.appendChild(input);
+    this._acInputEl = input;
+    requestAnimationFrame(() => { input.focus(); input.select(); });
+
+    const commit = () => {
+      const val = parseFloat(input.value);
+      if (!isNaN(val) && val > 1.00) {
+        this.autoCashoutVal = parseFloat(Math.min(1000, val).toFixed(2));
+      } else {
+        this.autoCashoutVal = null;
+      }
+      this._refreshAcDisplay();
+      if (input.parentNode) input.remove();
+      this._acInputEl = null;
+    };
+
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { input.blur(); }
+      if (e.key === 'Escape') {
+        this.autoCashoutVal = null;
+        this._refreshAcDisplay();
+        input.remove();
+        this._acInputEl = null;
+      }
+      e.stopPropagation();
+    });
+  }
+
+  _refreshAcDisplay() {
+    if (!this.acText) return;
+    if (this.autoCashoutVal) {
+      this.acText.setText(`${this.autoCashoutVal.toFixed(2)}×`).setColor('#8888ff');
+      this.acFieldBg.setStrokeStyle(1.5, 0x6666cc, 0.9);
+    } else {
+      this.acText.setText('OFF').setColor('#333366');
+      this.acFieldBg.setStrokeStyle(1, 0x4444aa, 0.5);
+    }
+  }
+
+  // ─── Auto-bet toggle ──────────────────────────────────────────────────────
+
+  _toggleAutoBet() {
+    this.autoBetEnabled = !this.autoBetEnabled;
+    if (this.autoBetEnabled) {
+      this.autoBetRoundsLeft = 50;
+      this.showToast('Auto-bet ON — 50 rounds', '#00ff88');
+    } else {
+      this.autoBetRoundsLeft = 0;
+      this.showToast('Auto-bet OFF', '#888888');
+    }
+    this._drawAutoBetToggle();
+  }
+
   // ─── Socket Event Handlers ────────────────────────────────────────────────
 
   bindSocketEvents() {
@@ -301,6 +487,21 @@ export default class UIScene extends Phaser.Scene {
       this.wormText.setText('🐛 0/3');
       this.enterBettingUI(duration);
       this.roundInfo.setText(`Round #${roundId}  Hash: ${publicHash.slice(0, 12)}…`);
+
+      // Auto-bet
+      if (this.autoBetEnabled && this.autoBetRoundsLeft > 0) {
+        this.time.delayedCall(400, () => {
+          if (this.state === STATES.BETTING && !this.betPlaced) {
+            socket.placeBet(this.betAmount, this.autoCashoutVal);
+            this.autoBetRoundsLeft--;
+            if (this.autoBetRoundsLeft <= 0) {
+              this.autoBetEnabled = false;
+              this.showToast('Auto-bet finished (50 rounds)', '#888888');
+            }
+            this._drawAutoBetToggle();
+          }
+        });
+      }
     });
 
     socket.on('betting:countdown', ({ remaining }) => {
@@ -320,6 +521,11 @@ export default class UIScene extends Phaser.Scene {
       this.updateMultiplierDisplay(multiplier, tiles);
       this.updatePayoutPreview();
       this.scene.get('GameScene')?.events.emit('server:tick', { multiplier, tiles });
+
+      // Auto-cashout
+      if (this.betPlaced && !this.cashedOut && this.autoCashoutVal && multiplier >= this.autoCashoutVal) {
+        socket.cashOut();
+      }
     });
 
     socket.on('round:crashed', ({ crashPoint, secretSeed, roundId }) => {
