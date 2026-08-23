@@ -188,7 +188,6 @@ export default class GameScene extends Phaser.Scene {
   // ── Ambient debris — drain pipe objects ────────────────────────────────
 
   spawnAmbientAnim() {
-    if (!this.spider?.isAlive) return;
     const { width, height } = this.scale;
     const camera = this.cameras.main;
     const innerL = this.pipeInnerLeft  + 6;
@@ -1388,6 +1387,19 @@ export default class GameScene extends Phaser.Scene {
   // ── Main update ──────────────────────────────────────────────────────────
 
   update(time, delta) {
+    // Ambient debris runs regardless of game state (between rounds too)
+    this._animTimer += delta;
+    if (this._animTimer > 850) {
+      this._animTimer = 0;
+      this.spawnAmbientAnim();
+      this.spawnAmbientAnim();
+    }
+    this._bathroomTimer -= delta;
+    if (this._bathroomTimer <= 0) {
+      this._bathroomTimer = Phaser.Math.Between(14000, 28000);
+      this.spawnBathroomOpening();
+    }
+
     if (this.gameOver) return;
 
     const { height } = this.scale;
@@ -1411,20 +1423,6 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.floodScheduler) this.floodScheduler.update(delta);
 
-    // Ambient debris — two per burst every ~850 ms
-    this._animTimer += delta;
-    if (this._animTimer > 850) {
-      this._animTimer = 0;
-      this.spawnAmbientAnim();
-      this.spawnAmbientAnim();
-    }
-
-    // Bathroom opening (more frequent — every 12-26s)
-    this._bathroomTimer -= delta;
-    if (this._bathroomTimer <= 0) {
-      this._bathroomTimer = Phaser.Math.Between(14000, 28000);
-      this.spawnBathroomOpening();
-    }
 
     // Flash flood fake-out warnings (server/playing mode only)
     if (this.serverMode && this.spider?.isAlive) {
