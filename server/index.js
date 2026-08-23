@@ -304,6 +304,35 @@ app.post('/admin/withdrawal-queue/:index/approve', async (req, res) => {
 const chatHistory = [];          // last 60 messages in memory
 const chatRateLimits = new Map(); // socketId → last message timestamp
 
+// ─── Top Scores (rolling 10-minute window by cashout multiplier) ─────────────
+const recentCashouts = []; // entries: { username, multiplier, betAmount, payout, ts }
+
+function pruneOldScores() {
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  while (recentCashouts.length && recentCashouts[0].ts < cutoff) recentCashouts.shift();
+}
+
+function getTopTen() {
+  pruneOldScores();
+  const byPlayer = new Map();
+  recentCashouts.forEach(e => {
+    const cur = byPlayer.get(e.username);
+    if (!cur || e.multiplier > cur.multiplier) byPlayer.set(e.username, e);
+  });
+  return [...byPlayer.values()].sort((a, b) => b.multiplier - a.multiplier).slice(0, 10);
+}
+
+function broadcastTopScores() {
+  io.emit('topscores:update', getTopTen());
+}
+
+function broadcastPlayerCount() {
+  io.emit('players:count', { count: roundManager.players.size });
+}
+
+// Every 10 minutes — prune window and rebroadcast (this resets the leaderboard)
+setInterval(broadcastTopScores, 10 * 60 * 1000);
+
 function pushChat(msg) {
   chatHistory.push(msg);
   if (chatHistory.length > 60) chatHistory.shift();
@@ -342,7 +371,16 @@ async function seedUsernameRegistry() {
 
 // ─── Socket.io ───────────────────────────────────────────────────────────────
 
-const roundManager = new RoundManager(io, { onCrash: systemChat, onRoundStart: systemChat });
+const roundManager = new RoundManager(io, {
+  onCrash: systemChat,
+  onRoundStart: systemChat,
+  onCashout: ({ username, multiplier, payout, betAmount }) => {
+    if (!username) return;
+    recentCashouts.push({ username, multiplier, betAmount: betAmount || 0, payout: payout || 0, ts: Date.now() });
+    broadcastTopScores();
+    systemChat(`💸 ${username} cashed out at ${multiplier.toFixed(2)}× (+$${payout.toFixed(2)})`);
+  },
+});
 
 io.on('connection', async (socket) => {
   // Verify JWT from handshake
@@ -366,6 +404,10 @@ io.on('connection', async (socket) => {
 
   // Send chat history to new connection
   socket.emit('chat:history', chatHistory);
+
+  // Send current top scores and player count to new connection
+  socket.emit('topscores:update', getTopTen());
+  broadcastPlayerCount();
 
   // Announce join (only if they have a username — new players see this after claiming)
   if (resolvedUsername) {
@@ -412,12 +454,8 @@ io.on('connection', async (socket) => {
     const result = roundManager.cashOut(socket.id);
     if (!result.ok) {
       socket.emit('cashout:error', { error: result.error });
-    } else {
-      // Announce cashout in chat
-      const cashPlayer = roundManager.getPlayer(socket.id);
-      const cashName = cashPlayer?.username || socket.id.slice(0, 6);
-      systemChat(`💸 ${cashName} cashed out at ${result.multiplier?.toFixed(2) ?? '?'}× (+$${result.payout?.toFixed(2) ?? '?'})`);
     }
+    // cashout announcement + score tracking handled by onCashout hook in RoundManager
   });
 
   // ── Username claim ────────────────────────────────────────────────────────
@@ -464,6 +502,7 @@ io.on('connection', async (socket) => {
     const leaveName = roundManager.getPlayer(socket.id)?.username || socket.id.slice(0, 6);
     roundManager.removePlayer(socket.id);
     chatRateLimits.delete(socket.id);
+    broadcastPlayerCount();
     systemChat(`👋 ${leaveName} left`);
   });
 });

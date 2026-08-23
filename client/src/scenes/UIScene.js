@@ -27,6 +27,8 @@ export default class UIScene extends Phaser.Scene {
     this.autoBetEnabled = false;
     this.autoBetRoundsLeft = 0;
     this._localHistory = [];
+    this._topScores = [];
+    this._playerCount = 0;
 
     // ── Background panels ──────────────────────────────────────────────────
 
@@ -269,6 +271,31 @@ export default class UIScene extends Phaser.Scene {
       this.muteBtn.setText(muted ? '🔇' : '🔊');
       sound.setBgMusicMute(muted);
     });
+
+    // ── Top-5 HUD ─────────────────────────────────────────────────────────
+    const hudX = width - 8;
+    const hudStartY = 56;
+    const hudW = 148;
+
+    this._top5Bg = this.add.rectangle(hudX - hudW / 2, hudStartY + 54, hudW, 108, 0x000000, 0.52)
+      .setScrollFactor(0).setDepth(10);
+    this.add.text(hudX - 4, hudStartY, '🏆 TOP 5', {
+      fontSize: '8px', color: '#ffd700', fontFamily: 'Arial Black, sans-serif',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
+
+    this._top5Rows = [];
+    for (let i = 0; i < 5; i++) {
+      this._top5Rows.push(
+        this.add.text(hudX - 4, hudStartY + 12 + i * 19, '', {
+          fontSize: '9px', color: '#aaaaaa',
+          stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(1, 0).setScrollFactor(0).setDepth(11)
+      );
+    }
+
+    this._playerCountText = this.add.text(hudX - 4, hudStartY + 107, '👥 — live', {
+      fontSize: '9px', color: '#444444',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
     // ── Wire socket events ─────────────────────────────────────────────────
     this.bindSocketEvents();
@@ -577,6 +604,16 @@ export default class UIScene extends Phaser.Scene {
       this.updateHistoryBar(history);
     });
 
+    socket.on('topscores:update', (scores) => {
+      this._topScores = scores || [];
+      this._updateTop5HUD();
+    });
+
+    socket.on('players:count', ({ count }) => {
+      this._playerCount = count;
+      this._playerCountText?.setText(`👥 ${count} live`);
+    });
+
     socket.on('wallet:deposit:confirmed', ({ amount, mock }) => {
       this.showToast(`✓ Deposited $${amount} USDT${mock ? ' (mock)' : ''}`, '#00ff88');
     });
@@ -820,6 +857,22 @@ export default class UIScene extends Phaser.Scene {
     if (!socket.connected) {
       const payout = (this.betAmount * multiplier).toFixed(2);
       this.showCashoutSuccess(multiplier, payout);
+    }
+  }
+
+  _updateTop5HUD() {
+    const trophies = ['🥇', '🥈', '🥉', '#4', '#5'];
+    const colors   = ['#ffd700', '#c0c0c0', '#cd7f32', '#888888', '#666666'];
+    for (let i = 0; i < 5; i++) {
+      const row = this._top5Rows?.[i];
+      if (!row) continue;
+      const s = this._topScores[i];
+      if (s) {
+        const name = s.username.length > 9 ? s.username.slice(0, 8) + '…' : s.username;
+        row.setText(`${trophies[i]} ${name}  ${s.multiplier.toFixed(2)}×`).setColor(colors[i]);
+      } else {
+        row.setText('');
+      }
     }
   }
 

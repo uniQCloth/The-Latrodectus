@@ -51,6 +51,8 @@ class SocketManager {
       'wallet:deposit:confirmed', 'wallet:withdraw:confirmed',
       // Username events
       'username:claimed', 'username:taken', 'username:needed', 'username:restored',
+      // Leaderboard / player count
+      'topscores:update', 'players:count',
     ];
     gameEvents.forEach(ev => {
       this.socket.on(ev, (data) => this._emit(ev, data));

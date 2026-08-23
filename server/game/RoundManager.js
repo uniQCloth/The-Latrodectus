@@ -128,6 +128,8 @@ class RoundManager {
       balance: player?.balance,
     });
 
+    this._hooks.onCashout?.({ socketId, username: player?.username, multiplier, payout, betAmount: bet.amount });
+
     // Persist cashout to DB
     if (db.isEnabled() && bet.betId && player?.playerId) {
       queries.settleBet({ betId: bet.betId, cashedOut: true, cashoutAt: multiplier, payout });
