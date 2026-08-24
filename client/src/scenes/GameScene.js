@@ -31,7 +31,7 @@ export default class GameScene extends Phaser.Scene {
     this._slipTimer      = Phaser.Math.Between(6000, 14000);
     this._slipping       = false;
     this._slipTween      = null;
-    this._magicWormTimer = Phaser.Math.Between(45000, 90000);
+    this._magicWormTimer = Phaser.Math.Between(120000, 360000);
     this._magicWormActive = false;
     this._magicTileBonus  = 0;
 
@@ -1847,8 +1847,9 @@ export default class GameScene extends Phaser.Scene {
       // Magic worm spawn timer
       this._magicWormTimer -= delta;
       if (this._magicWormTimer <= 0) {
-        this._magicWormTimer = Phaser.Math.Between(45000, 90000);
-        this._spawnMagicGlowWorm();
+        // Reset window; only 25% chance it actually appears this cycle
+        this._magicWormTimer = Phaser.Math.Between(120000, 360000);
+        if (Math.random() < 0.25) this._spawnMagicGlowWorm();
       }
     }
 
