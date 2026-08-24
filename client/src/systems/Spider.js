@@ -261,26 +261,34 @@ export default class Spider {
     this.isAlive = false;
     this.scene.events.emit('spider:died', cause);
 
-    // Death animation — spin + fall
-    this.scene.tweens.add({
-      targets: this.sprite,
-      angle: 720,
-      alpha: 0,
-      y: this.sprite.y + 200,
-      duration: 800,
-      ease: 'Power2',
-    });
-    this.scene.tweens.add({
-      targets: this.gfx,
-      alpha: 0,
-      duration: 800,
-    });
-    // Silk snaps and fades
-    this.scene.tweens.add({
-      targets: this.silkGfx,
-      alpha: 0,
-      duration: 300,
-    });
+    if (cause === 'flood') {
+      // Silk snaps instantly as thread breaks under water force
+      this.scene.tweens.add({ targets: this.silkGfx, alpha: 0, duration: 80 });
+      // Spider gfx swept straight down by the rushing water, then fades
+      this.scene.tweens.add({
+        targets: this.gfx,
+        y: `+=380`,
+        alpha: 0,
+        duration: 650,
+        ease: 'Power3',
+      });
+      // Physics body follows (camera already frozen)
+      this.scene.tweens.add({
+        targets: this.sprite,
+        y: this.sprite.y + 380,
+        alpha: 0,
+        duration: 650,
+        ease: 'Power3',
+      });
+    } else {
+      // Standard spin + fall for non-flood deaths
+      this.scene.tweens.add({
+        targets: this.sprite,
+        angle: 720, alpha: 0, y: this.sprite.y + 200, duration: 800, ease: 'Power2',
+      });
+      this.scene.tweens.add({ targets: this.gfx, alpha: 0, duration: 800 });
+      this.scene.tweens.add({ targets: this.silkGfx, alpha: 0, duration: 300 });
+    }
   }
 
   getTileHeight() {

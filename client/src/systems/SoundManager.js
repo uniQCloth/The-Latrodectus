@@ -192,6 +192,14 @@ export default class SoundManager {
     this._tone(900, 'square', 0.1, 0.15, 0.1);
   }
 
+  playMagicWorm() {
+    // Ascending magical chime — sparkly wonder feeling
+    [523, 659, 784, 988, 1319, 1568].forEach((f, i) => {
+      this._tone(f, 'sine', 0.25, 0.20, i * 0.08);
+    });
+    this._noise(0.06, 0.05, 0.35);
+  }
+
   playSlip() {
     // Silk friction squeak — descending pitch like thread sliding through spinnerets
     this._tone(1100, 'sine', 0.04, 0.13);

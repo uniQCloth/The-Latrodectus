@@ -31,11 +31,17 @@ export default class GameScene extends Phaser.Scene {
     this._slipTimer      = Phaser.Math.Between(6000, 14000);
     this._slipping       = false;
     this._slipTween      = null;
+    this._magicWormTimer = Phaser.Math.Between(45000, 90000);
+    this._magicWormActive = false;
+    this._magicTileBonus  = 0;
 
     // ── Pipe geometry ─────────────────────────────────────────────────────
     this.drawWorldBackground();
     this.drawPipeSeams();        // world space — scroll past spider
     this.drawPipeWalls();        // screen space — always visible
+
+    // ── Persistent wall crawlers (always visible) ─────────────────────────
+    this._spawnPersistentCrawlers();
 
     // ── Platforms ─────────────────────────────────────────────────────────
     this.platformManager = new PlatformManager(this);
@@ -195,6 +201,232 @@ export default class GameScene extends Phaser.Scene {
 
     this.pipeInnerLeft  = PIPE_WALL;
     this.pipeInnerRight = width - PIPE_WALL;
+  }
+
+  // ── Persistent wall crawlers — always on screen ──────────────────────────
+
+  _spawnPersistentCrawlers() {
+    const { height } = this.scale;
+    this._spawnPersistentRoach(true);           // left wall roach
+    this._spawnPersistentCentipede(false);      // right wall centipede
+    this._spawnPersistentFly(this.scale.width / 2 + Phaser.Math.Between(-40, 40));
+  }
+
+  _spawnPersistentRoach(onLeft) {
+    const { height } = this.scale;
+    const wallX = onLeft ? this.pipeInnerLeft + 9 : this.pipeInnerRight - 9;
+    const gfx = this.add.graphics().setScrollFactor(0).setDepth(5);
+    gfx.x = wallX;
+    gfx.y = Phaser.Math.Between(120, height - 120);
+    let rLeg = 0;
+    let dir  = 1;
+
+    const draw = () => {
+      gfx.clear();
+      gfx.fillStyle(0x3a2200, 1); gfx.fillEllipse(0, 0, 14, 8);
+      gfx.fillStyle(0x2a1800, 1); gfx.fillCircle(0, -5, 4);
+      gfx.fillStyle(0xff4400, 0.8); gfx.fillCircle(-2, -6, 1.2); gfx.fillCircle(2, -6, 1.2);
+      gfx.lineStyle(0.8, 0x5a3200, 0.9);
+      gfx.beginPath(); gfx.moveTo(-2, -8); gfx.lineTo(-6 + Math.sin(rLeg) * 3, -16); gfx.strokePath();
+      gfx.beginPath(); gfx.moveTo(2, -8); gfx.lineTo(8 + Math.sin(rLeg + 1) * 3, -16); gfx.strokePath();
+      gfx.lineStyle(1, 0x4a2800, 0.85);
+      [-3, 0, 3].forEach((ly, ri) => {
+        gfx.beginPath(); gfx.moveTo(-6, ly); gfx.lineTo(-6 - (Math.sin(rLeg + ri) > 0 ? 8 : 6), ly + 3); gfx.strokePath();
+        gfx.beginPath(); gfx.moveTo(6, ly);  gfx.lineTo(6 + (Math.sin(rLeg + ri) > 0 ? 8 : 6), ly + 3);  gfx.strokePath();
+      });
+    };
+
+    const step = () => {
+      if (!gfx.active) return;
+      if ((gfx.y < 30 && dir < 0) || (gfx.y > height - 30 && dir > 0)) dir *= -1;
+      const dist = Phaser.Math.Between(20, 55) * dir;
+      this.tweens.add({
+        targets: gfx, y: gfx.y + dist,
+        duration: Phaser.Math.Between(180, 360), ease: 'Linear',
+        onUpdate: () => { rLeg += 0.25; draw(); },
+        onComplete: () => {
+          this.time.delayedCall(Phaser.Math.Between(80, 400), () => { draw(); if (gfx.active) step(); });
+        },
+      });
+    };
+    draw(); step();
+  }
+
+  _spawnPersistentCentipede(onLeft) {
+    const { height } = this.scale;
+    const wallX = onLeft ? this.pipeInnerLeft + 11 : this.pipeInnerRight - 11;
+    const gfx = this.add.graphics().setScrollFactor(0).setDepth(5);
+    gfx.x = wallX;
+    gfx.y = Phaser.Math.Between(120, height - 120);
+    const segs = Phaser.Math.Between(9, 13);
+    let tick = 0;
+    let dir  = 1;
+
+    const draw = () => {
+      gfx.clear();
+      for (let ci = 0; ci < segs; ci++) {
+        const sy   = ci * 5;
+        const wave = Math.sin(tick + ci * 0.5) * 3;
+        gfx.fillStyle(ci === 0 ? 0x442200 : 0x663300, 1); gfx.fillCircle(wave, sy, 4);
+        gfx.lineStyle(0.5, 0x885522, 0.5); gfx.strokeCircle(wave, sy, 4);
+        gfx.lineStyle(0.8, 0x885522, 0.75);
+        gfx.beginPath(); gfx.moveTo(wave - 4, sy); gfx.lineTo(wave - 9, sy + Math.sin(tick + ci * 0.7) * 3); gfx.strokePath();
+        gfx.beginPath(); gfx.moveTo(wave + 4, sy); gfx.lineTo(wave + 9, sy + Math.sin(tick + ci * 0.7 + Math.PI) * 3); gfx.strokePath();
+      }
+      gfx.fillStyle(0xff3300, 0.8);
+      gfx.fillCircle(Math.sin(tick) * 3, 0, 1.5); gfx.fillCircle(-Math.sin(tick) * 3, -1, 1.5);
+      gfx.lineStyle(0.8, 0x884411, 0.8);
+      gfx.beginPath(); gfx.moveTo(0, -4); gfx.lineTo(-5 + Math.sin(tick) * 3, -12); gfx.strokePath();
+      gfx.beginPath(); gfx.moveTo(0, -4); gfx.lineTo(5 + Math.sin(tick + 1) * 3, -12); gfx.strokePath();
+    };
+
+    const step = () => {
+      if (!gfx.active) return;
+      if ((gfx.y < 40 && dir < 0) || (gfx.y > height - 40 && dir > 0)) dir *= -1;
+      const dist = Phaser.Math.Between(30, 70) * dir;
+      this.tweens.add({
+        targets: gfx, y: gfx.y + dist,
+        duration: Phaser.Math.Between(250, 500), ease: 'Linear',
+        onUpdate: () => { tick += 0.2; draw(); },
+        onComplete: () => {
+          this.time.delayedCall(Phaser.Math.Between(80, 320), () => { draw(); if (gfx.active) step(); });
+        },
+      });
+    };
+    draw(); step();
+  }
+
+  _spawnPersistentFly(startX) {
+    const { width, height } = this.scale;
+    const innerL = this.pipeInnerLeft + 12;
+    const innerR = this.pipeInnerRight - 12;
+    const gfx = this.add.graphics().setScrollFactor(0).setDepth(5);
+    gfx.x = Phaser.Math.Clamp(startX, innerL, innerR);
+    gfx.y = Phaser.Math.Between(80, height - 80);
+    let fTick = 0;
+    const flapRate = Phaser.Math.FloatBetween(0.35, 0.55);
+
+    const draw = () => {
+      gfx.clear();
+      gfx.fillStyle(0x111111, 1); gfx.fillEllipse(0, 0, 10, 6);
+      gfx.fillStyle(0x222222, 1); gfx.fillCircle(0, -4, 3);
+      gfx.fillStyle(0xcc1100, 0.9); gfx.fillCircle(-2, -4, 1.5); gfx.fillCircle(2, -4, 1.5);
+      const flapY = Math.abs(Math.sin(fTick * flapRate * Math.PI * 2));
+      gfx.fillStyle(0xaaddee, 0.3 + flapY * 0.15);
+      gfx.fillEllipse(-7, -2 - flapY * 3, 12, 5 + flapY * 4);
+      gfx.fillEllipse(7, -2 - flapY * 3, 12, 5 + flapY * 4);
+      gfx.lineStyle(0.8, 0x333333, 0.6);
+      for (let li = -1; li <= 1; li++) {
+        gfx.beginPath(); gfx.moveTo(li * 3, 2); gfx.lineTo(li * 3 - 5, 6 + Math.sin(fTick + li) * 2); gfx.strokePath();
+        gfx.beginPath(); gfx.moveTo(li * 3, 2); gfx.lineTo(li * 3 + 5, 6 + Math.sin(fTick + li + 1) * 2); gfx.strokePath();
+      }
+    };
+
+    const step = () => {
+      if (!gfx.active) return;
+      // Flies buzz around in a random direction, bounce off pipe walls and edges
+      const dx = Phaser.Math.Between(-60, 60);
+      const dy = Phaser.Math.Between(-80, 80);
+      const nx = Phaser.Math.Clamp(gfx.x + dx, innerL, innerR);
+      const ny = Phaser.Math.Clamp(gfx.y + dy, 40, height - 40);
+      const dur = Phaser.Math.Between(400, 900);
+      this.tweens.add({
+        targets: gfx, x: nx, y: ny, duration: dur, ease: 'Sine.easeInOut',
+        onUpdate: () => { fTick += 0.18; draw(); },
+        onComplete: () => {
+          this.time.delayedCall(Phaser.Math.Between(100, 500), () => { draw(); if (gfx.active) step(); });
+        },
+      });
+    };
+    draw(); step();
+  }
+
+  // ── Magic glow worm — boosts climb speed visually ─────────────────────────
+
+  _spawnMagicGlowWorm() {
+    if (!this.serverMode || !this.spider?.isAlive || this.gameOver) return;
+    const { width, height } = this.scale;
+    const innerL = this.pipeInnerLeft + 14;
+    const innerR = this.pipeInnerRight - 14;
+    const fromLeft = Math.random() < 0.5;
+    const startX = fromLeft ? innerL : innerR;
+    const endX   = fromLeft ? innerR : innerL;
+    const wormY  = Phaser.Math.Between(height * 0.3, height * 0.65);
+    const duration = Phaser.Math.Between(14000, 20000);
+
+    sound.playMagicWorm();
+    this._magicWormActive = true;
+
+    // Glow worm graphic
+    const worm = this.add.graphics().setScrollFactor(0).setDepth(12);
+    worm.x = startX; worm.y = wormY;
+    const bodyLen = 6;
+    let mTick = 0;
+    const rainbowColors = [0xffdd00, 0x00ffcc, 0xff44cc, 0x44ddff, 0xaaffaa, 0xff8844];
+
+    const drawMagicWorm = () => {
+      worm.clear();
+      // Glow aura
+      const glowCol = rainbowColors[Math.floor(mTick * 0.8) % rainbowColors.length];
+      worm.fillStyle(glowCol, 0.08 + Math.sin(mTick) * 0.04);
+      worm.fillCircle(0, 0, 28);
+      worm.fillStyle(glowCol, 0.18 + Math.sin(mTick * 1.3) * 0.08);
+      worm.fillCircle(0, 0, 18);
+      // Body segments
+      for (let si = 0; si < bodyLen; si++) {
+        const ox = (si - bodyLen / 2) * 9 * (fromLeft ? -1 : 1);
+        const oy = Math.sin(mTick + si * 0.5) * 5;
+        const segCol = rainbowColors[(Math.floor(mTick * 0.5) + si) % rainbowColors.length];
+        worm.fillStyle(segCol, 0.9); worm.fillCircle(ox, oy, 7);
+        worm.fillStyle(0xffffff, 0.35); worm.fillCircle(ox - 2, oy - 2, 2.5);
+      }
+      // Eyes (leading segment)
+      const headOX = (bodyLen / 2) * 9 * (fromLeft ? 1 : -1);
+      worm.fillStyle(0xffffff, 1); worm.fillCircle(headOX - 3, -3, 3); worm.fillCircle(headOX + 3, -3, 3);
+      worm.fillStyle(0x111111, 1); worm.fillCircle(headOX - 2, -3, 1.5); worm.fillCircle(headOX + 2, -3, 1.5);
+      // Sparkle trail
+      for (let sp = 0; sp < 5; sp++) {
+        const spCol = rainbowColors[(sp + Math.floor(mTick)) % rainbowColors.length];
+        const spX = (fromLeft ? 1 : -1) * (sp * 12 + Math.sin(mTick + sp) * 6);
+        worm.fillStyle(spCol, 0.6 - sp * 0.1);
+        worm.fillCircle(spX, Math.sin(mTick * 2 + sp) * 4, 3 - sp * 0.4);
+      }
+    };
+
+    // Animate worm crawling across pipe
+    this.tweens.add({
+      targets: worm, x: endX, duration, ease: 'Sine.easeInOut',
+      onUpdate: () => { mTick += 0.08; drawMagicWorm(); },
+      onComplete: () => {
+        this._magicWormActive = false;
+        this.tweens.add({
+          targets: worm, alpha: 0, duration: 500,
+          onComplete: () => worm.destroy(),
+        });
+      },
+    });
+
+    // Screen golden tint while worm is present
+    const tint = this.add.graphics().setScrollFactor(0).setDepth(11);
+    tint.fillStyle(0xffdd44, 0.06); tint.fillRect(PIPE_WALL, 0, width - PIPE_WALL * 2, height);
+    this.tweens.add({ targets: tint, alpha: 0, duration: 500, delay: duration - 500,
+      onComplete: () => tint.destroy() });
+
+    // "✨ MAGIC BOOST" banner
+    const banner = this.add.text(width / 2, height * 0.18,
+      '✨  MAGIC WORM  ✨', {
+        fontSize: '19px', fontFamily: 'Arial Black, sans-serif',
+        color: '#ffee22', stroke: '#000000', strokeThickness: 5,
+        backgroundColor: '#00000088', padding: { x: 12, y: 5 },
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(13).setAlpha(0);
+    this.tweens.add({ targets: banner, alpha: 1, duration: 400,
+      onComplete: () => {
+        this.time.delayedCall(duration - 900, () => {
+          this.tweens.add({ targets: banner, alpha: 0, duration: 400,
+            onComplete: () => banner.destroy() });
+        });
+      },
+    });
   }
 
   // ── Ambient debris — drain pipe objects ────────────────────────────────
@@ -1320,68 +1552,73 @@ export default class GameScene extends Phaser.Scene {
       });
     });
 
-    this.tweens.add({
-      targets: waveface, y: 0, duration: 205, delay: waveDelay + 35, ease: 'Power4',
-      onComplete: () => {
-        if (this._floodGen !== floodGen) { destroyFloodGfx(); return; }
+    this.tweens.add({ targets: waveface, y: 0, duration: 205, delay: waveDelay + 35, ease: 'Power4' });
 
-        // IMPACT — camera flash + foam explosion at waterline
+    // Spider hit: water body covers spider position (height/2) roughly 90ms into wave travel
+    this.time.delayedCall(waveDelay + 90, () => {
+      if (this._floodGen !== floodGen) return;
+      if (this.spider?.isAlive) {
+        // Camera flash as wave smashes the spider
         this.cameras.main.flash(200, 180, 220, 255);
-        for (let i = 0; i < 24; i++) {
-          const imp = this.add.graphics().setScrollFactor(0).setDepth(25);
-          imp.fillStyle(0xffffff, 0.9);
-          const ix = PIPE_WALL + Math.random() * innerW;
-          const ir = 5 + Math.random() * 14;
-          imp.fillCircle(ix, 70 + Math.random() * 25, ir);
-          this.tweens.add({
-            targets: imp,
-            y: `-=${Phaser.Math.Between(40, 110)}`,
-            x: `+=${Phaser.Math.Between(-40, 40)}`,
-            alpha: 0,
-            scaleX: { from: 1, to: 0.2 },
-            scaleY: { from: 1, to: 3 },
-            duration: 280 + Math.random() * 220,
-            ease: 'Power2',
-            onComplete: () => imp.destroy(),
-          });
-        }
-
         this.spider.die('flood');
+      }
+    });
 
-        // Churning bubbles rising through the water column
-        for (let i = 0; i < 32; i++) {
-          this.time.delayedCall(i * 50, () => {
-            if (this._floodGen !== floodGen) return;
-            if (!layerMain.scene) return;
-            const bub = this.add.graphics().setScrollFactor(0).setDepth(24);
-            const br  = 4 + Math.random() * 18;
-            bub.lineStyle(1.5, 0xaaddff, 0.65);
-            bub.strokeCircle(0, 0, br);
-            bub.fillStyle(0x88bbff, 0.06);
-            bub.fillCircle(0, 0, br);
-            bub.x = PIPE_WALL + Math.random() * innerW;
-            bub.y = height * 0.1 + Math.random() * height * 0.85;
-            this.tweens.add({
-              targets: bub,
-              y: bub.y - Phaser.Math.Between(100, 380),
-              x: bub.x + Phaser.Math.Between(-25, 25),
-              alpha: 0,
-              duration: Phaser.Math.Between(700, 2200),
-              ease: 'Sine.easeIn',
-              onComplete: () => bub.destroy(),
-            });
-          });
-        }
+    // Impact foam explosion once waveface lands (slightly after spider death)
+    this.time.delayedCall(waveDelay + 245, () => {
+      if (this._floodGen !== floodGen) return;
+      for (let i = 0; i < 24; i++) {
+        const imp = this.add.graphics().setScrollFactor(0).setDepth(25);
+        imp.fillStyle(0xffffff, 0.9);
+        const ix = PIPE_WALL + Math.random() * innerW;
+        const ir = 5 + Math.random() * 14;
+        imp.fillCircle(ix, 70 + Math.random() * 25, ir);
+        this.tweens.add({
+          targets: imp,
+          y: `-=${Phaser.Math.Between(40, 110)}`,
+          x: `+=${Phaser.Math.Between(-40, 40)}`,
+          alpha: 0,
+          scaleX: { from: 1, to: 0.2 },
+          scaleY: { from: 1, to: 3 },
+          duration: 280 + Math.random() * 220,
+          ease: 'Power2',
+          onComplete: () => imp.destroy(),
+        });
+      }
 
-        // Drain the tsunami out after 2.2s
-        this.time.delayedCall(2200, () => {
+      // Churning bubbles rising through the water column
+      for (let i = 0; i < 32; i++) {
+        this.time.delayedCall(i * 50, () => {
           if (this._floodGen !== floodGen) return;
+          if (!layerMain.scene) return;
+          const bub = this.add.graphics().setScrollFactor(0).setDepth(24);
+          const br  = 4 + Math.random() * 18;
+          bub.lineStyle(1.5, 0xaaddff, 0.65);
+          bub.strokeCircle(0, 0, br);
+          bub.fillStyle(0x88bbff, 0.06);
+          bub.fillCircle(0, 0, br);
+          bub.x = PIPE_WALL + Math.random() * innerW;
+          bub.y = height * 0.1 + Math.random() * height * 0.85;
           this.tweens.add({
-            targets: floodGfx, alpha: 0, duration: 1000,
-            onComplete: () => destroyFloodGfx(),
+            targets: bub,
+            y: bub.y - Phaser.Math.Between(100, 380),
+            x: bub.x + Phaser.Math.Between(-25, 25),
+            alpha: 0,
+            duration: Phaser.Math.Between(700, 2200),
+            ease: 'Sine.easeIn',
+            onComplete: () => bub.destroy(),
           });
         });
-      },
+      }
+
+      // Drain the tsunami out after 2.2s
+      this.time.delayedCall(2200, () => {
+        if (this._floodGen !== floodGen) return;
+        this.tweens.add({
+          targets: floodGfx, alpha: 0, duration: 1000,
+          onComplete: () => destroyFloodGfx(),
+        });
+      });
     });
   }
 
@@ -1532,6 +1769,11 @@ export default class GameScene extends Phaser.Scene {
     this._slipping  = false;
     this._slipTween = null;
     this._slipTimer = Phaser.Math.Between(6000, 14000);
+
+    // Reset magic worm state
+    this._magicWormActive = false;
+    this._magicTileBonus  = 0;
+    this._magicWormTimer  = Phaser.Math.Between(45000, 90000);
   }
 
   // ── Auto climb (server mode) ─────────────────────────────────────────────
@@ -1540,11 +1782,10 @@ export default class GameScene extends Phaser.Scene {
     if (!this.serverMode || !this.spider.isAlive) return;
     const body = this.spider.getBody();
     const { width, height } = this.scale;
-    const targetY = this.groundY - this.serverTiles * 10;
+    const targetY = this.groundY - (this.serverTiles + Math.floor(this._magicTileBonus)) * 10;
     const newY = Phaser.Math.Linear(body.y, targetY, 0.3);
     body.setPosition(width / 2, newY);
     body.setVelocity(0, 0);
-    // Lock camera on spider — always centered, zero lag
     this.cameras.main.scrollY = body.y - height / 2;
   }
 
@@ -1602,6 +1843,20 @@ export default class GameScene extends Phaser.Scene {
         this._slipTimer = Phaser.Math.Between(6000, 14000);
         this._triggerSilkSlip();
       }
+
+      // Magic worm spawn timer
+      this._magicWormTimer -= delta;
+      if (this._magicWormTimer <= 0) {
+        this._magicWormTimer = Phaser.Math.Between(45000, 90000);
+        this._spawnMagicGlowWorm();
+      }
+    }
+
+    // Magic tile bonus ramp: grow while worm is active, drain when it leaves
+    if (this._magicWormActive) {
+      this._magicTileBonus = Math.min(this._magicTileBonus + (4 * delta / 1000), 90);
+    } else if (this._magicTileBonus > 0) {
+      this._magicTileBonus = Math.max(0, this._magicTileBonus - (10 * delta / 1000));
     }
 
     // Win check
