@@ -23,10 +23,12 @@ export default class FloodScheduler {
     if (!this.spider.isAlive) return;
     sound.playFloodWarning();
 
+    // 45% chance this warning is a false alarm
+    this._isFalseAlarm = Math.random() < 0.45;
+
     const { width } = this.scene.scale;
     const camera = this.scene.cameras.main;
 
-    // Warning text — flashes at top of screen
     this.warningText = this.scene.add.text(
       camera.scrollX + width / 2,
       camera.scrollY + 140,
@@ -51,7 +53,11 @@ export default class FloodScheduler {
           this.warningText.destroy();
           this.warningText = null;
         }
-        this.spawnFlood();
+        if (this._isFalseAlarm) {
+          this._doFalseAlarm();
+        } else {
+          this.spawnFlood();
+        }
       },
     });
 
@@ -74,6 +80,87 @@ export default class FloodScheduler {
       repeat: 7,
       onComplete: () => edgeFlash.destroy(),
     });
+  }
+
+  _doFalseAlarm() {
+    if (!this.spider.isAlive) return;
+    const { width, height } = this.scene.scale;
+    const camera = this.scene.cameras.main;
+
+    // Water creeps up briefly then drains — looks real until it stops
+    const innerW = width - 40;
+    const startY = camera.scrollY + height + 30;
+    const peakY  = camera.scrollY + height * 0.72; // rises ~28% up screen then retreats
+
+    this.floodGraphic = this.scene.add.graphics().setScrollFactor(0).setDepth(14);
+    this.foamGraphic  = this.scene.add.graphics().setScrollFactor(0).setDepth(15);
+
+    const proxy = { y: startY };
+
+    // Rise
+    this.scene.tweens.add({
+      targets: proxy,
+      y: peakY,
+      duration: 1800,
+      ease: 'Sine.easeIn',
+      onUpdate: () => this._drawFalseAlarmWater(proxy.y, innerW, width, height, camera),
+      onComplete: () => {
+        // Drain back down
+        this.scene.tweens.add({
+          targets: proxy,
+          y: startY + 60,
+          duration: 1400,
+          ease: 'Sine.easeOut',
+          onUpdate: () => this._drawFalseAlarmWater(proxy.y, innerW, width, height, camera),
+          onComplete: () => {
+            if (this.floodGraphic) { this.floodGraphic.destroy(); this.floodGraphic = null; }
+            if (this.foamGraphic)  { this.foamGraphic.destroy();  this.foamGraphic  = null; }
+
+            // "All clear" message
+            const clear = this.scene.add.text(
+              camera.scrollX + width / 2,
+              camera.scrollY + height * 0.3,
+              '✓  False Alarm', {
+                fontSize: '20px', fontFamily: 'Arial Black, sans-serif',
+                color: '#00ff88', stroke: '#000000', strokeThickness: 4,
+              }
+            ).setOrigin(0.5).setScrollFactor(0).setDepth(20).setAlpha(0);
+
+            this.scene.tweens.add({
+              targets: clear, alpha: 1, duration: 220,
+              onComplete: () => {
+                this.scene.tweens.add({
+                  targets: clear, alpha: 0, duration: 500, delay: 1000,
+                  onComplete: () => clear.destroy(),
+                });
+              },
+            });
+
+            // Schedule next real/fake warning cycle
+            this.scheduleNextFlood();
+          },
+        });
+      },
+    });
+  }
+
+  _drawFalseAlarmWater(surfaceY, innerW, width, height, camera) {
+    const screenY = surfaceY - camera.scrollY;
+    if (!this.floodGraphic || !this.foamGraphic) return;
+
+    this.floodGraphic.clear();
+    this.floodGraphic.fillStyle(0x0044cc, 0.65);
+    this.floodGraphic.fillRect(20, screenY, innerW, height - screenY + 200);
+
+    this.foamGraphic.clear();
+    const t = this.scene.time.now * 0.003;
+    this.foamGraphic.lineStyle(5, 0x66ccff, 0.8);
+    this.foamGraphic.beginPath();
+    this.foamGraphic.moveTo(20, screenY);
+    for (let x = 20; x <= width - 20; x += 10) {
+      this.foamGraphic.lineTo(x, screenY + Math.sin(x * 0.05 + t) * 6);
+    }
+    this.foamGraphic.strokePath();
   }
 
   spawnFlood() {
