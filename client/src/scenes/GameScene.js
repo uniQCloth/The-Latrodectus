@@ -1482,18 +1482,29 @@ export default class GameScene extends Phaser.Scene {
 
   // ── Persistent water — drawn every frame during live rounds ─────────────
 
+  _waterColorForMultiplier(mult) {
+    // Deep blue (safe) → teal (5×) → yellow-green (15×) → orange (30×) → red (50×+)
+    if (mult < 5)   return { bg: 0x000c22, fg: 0x0d3d99 };
+    if (mult < 15)  return { bg: 0x001a1a, fg: 0x0a6655 };
+    if (mult < 30)  return { bg: 0x1a1500, fg: 0x887700 };
+    if (mult < 50)  return { bg: 0x1a0800, fg: 0xaa4400 };
+    return               { bg: 0x1a0000, fg: 0xcc1100 };
+  }
+
   _drawPersistentWater(surfaceY) {
     const { width, height } = this.scale;
     const innerW = width - PIPE_WALL * 2;
     const t = this.time.now * 0.003;
+    const mult = this._serverMultiplier ?? 1;
+    const { bg, fg } = this._waterColorForMultiplier(mult);
 
     this._waterBg.clear();
-    this._waterBg.fillStyle(0x000c22, 0.90);
+    this._waterBg.fillStyle(bg, 0.90);
     this._waterBg.fillRect(PIPE_WALL, surfaceY, innerW, height - surfaceY + 4);
 
     this._waterFg.clear();
     if (surfaceY >= height) return;
-    this._waterFg.fillStyle(0x0d3d99, 0.78);
+    this._waterFg.fillStyle(fg, 0.78);
     this._waterFg.beginPath();
     let first = true;
     for (let xi = 0; xi <= 26; xi++) {

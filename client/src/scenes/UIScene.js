@@ -1,4 +1,5 @@
 import { multiplierColor } from '../systems/Multiplier';
+import { startIdleWatch, stopIdleWatch } from '../systems/IdleManager';
 import socket from '../systems/SocketManager';
 import WalletPanel from '../ui/WalletPanel';
 import ChatPanel from '../ui/ChatPanel';
@@ -297,6 +298,17 @@ export default class UIScene extends Phaser.Scene {
       fontSize: '9px', color: '#444444',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
+    // ── How to Play icon ──────────────────────────────────────────────────
+
+    this.helpBtn = this.add.text(10, 66, '❓ HOW', {
+      fontSize: '12px', color: '#555555', backgroundColor: '#1a1a1a',
+      padding: { x: 8, y: 4 },
+    }).setScrollFactor(0).setDepth(11).setInteractive({ useHandCursor: true });
+
+    this.helpBtn.on('pointerover', () => this.helpBtn.setStyle({ backgroundColor: '#333333' }));
+    this.helpBtn.on('pointerout', () => this.helpBtn.setStyle({ backgroundColor: '#1a1a1a' }));
+    this.helpBtn.on('pointerdown', () => this._showHowToPlayOverlay());
+
     // ── Wire socket events ─────────────────────────────────────────────────
     this.bindSocketEvents();
 
@@ -304,6 +316,8 @@ export default class UIScene extends Phaser.Scene {
     this.events.on('game:update', this.onGameUpdate, this);
     this.events.on('game:over', this.onGameOver, this);
     this.events.on('game:win', this.onGameWin, this);
+
+    startIdleWatch(this.game);
   }
 
   // ─── Bet input (DOM overlay) ───────────────────────────────────────────────
@@ -515,6 +529,10 @@ export default class UIScene extends Phaser.Scene {
       this.crashOverlay.setAlpha(0);
       this.cashoutOverlay.setAlpha(0);
       this.multText.setText('1.00×').setColor('#ffffff').setScale(1);
+      if (this._cashoutPanicTween) {
+        this._cashoutPanicTween.stop();
+        this._cashoutPanicTween = null;
+      }
       this.wormText.setText('🐛 0/3');
       this.enterBettingUI(duration);
       this.roundInfo.setText(`Round #${roundId}  Hash: ${publicHash.slice(0, 12)}…`);
@@ -717,6 +735,29 @@ export default class UIScene extends Phaser.Scene {
       scaleY: { from: 1.06, to: 1 },
       duration: 120, ease: 'Power2',
     });
+
+    // Pulse the CASH OUT button with urgency at high multipliers
+    if (this.betPlaced && !this.cashedOut && this.state === 'playing') {
+      if (multiplier >= 30) {
+        if (!this._cashoutPanicTween) {
+          this._cashoutPanicTween = this.tweens.add({
+            targets: this.actionBtn,
+            scaleX: { from: 1, to: 1.06 },
+            scaleY: { from: 1, to: 1.06 },
+            duration: 200,
+            yoyo: true,
+            repeat: -1,
+          });
+          this.actionBtn.setStyle({ backgroundColor: '#ff4400', color: '#ffffff' });
+        }
+      } else {
+        if (this._cashoutPanicTween) {
+          this._cashoutPanicTween.stop();
+          this._cashoutPanicTween = null;
+          this.actionBtn.setScale(1).setStyle({ backgroundColor: '#cc1f00', color: '#ffffff' });
+        }
+      }
+    }
   }
 
   updatePayoutPreview() {
@@ -876,10 +917,116 @@ export default class UIScene extends Phaser.Scene {
     }
   }
 
+  // ─── How to Play overlay ──────────────────────────────────────────────────
+
+  _showHowToPlayOverlay() {
+    if (this._htpOverlay) return;
+    const { width, height } = this.scale;
+
+    const SLIDES = [
+      {
+        title: 'STEP 1 — PLACE YOUR BET',
+        caption: 'Set your bet amount and tap BET before the countdown runs out.',
+      },
+      {
+        title: 'STEP 2 — CASH OUT IN TIME',
+        caption: 'Tap CASH OUT before the rising water reaches the spider to lock in your win.',
+      },
+      {
+        title: 'STEP 3 — DON\'T GET FLOODED',
+        caption: 'Wait too long and the pipe bursts — the flood takes your entire bet.',
+      },
+    ];
+
+    const ICONS = ['💰', '💸', '⚠️'];
+    const BG_COLORS = [0x003311, 0x001133, 0x1a0000];
+    let slideIdx = 0;
+
+    // Semi-transparent backdrop
+    const backdrop = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.82)
+      .setScrollFactor(0).setDepth(80).setInteractive();
+
+    // Card
+    const cardH = height * 0.58;
+    const cardY = height / 2;
+    const card = this.add.rectangle(width / 2, cardY, width - 40, cardH, BG_COLORS[0], 1)
+      .setStrokeStyle(2, 0x00ff88, 0.7).setScrollFactor(0).setDepth(81);
+
+    const iconText = this.add.text(width / 2, cardY - cardH / 2 + 30, ICONS[0], {
+      fontSize: '36px',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(82);
+
+    const titleText = this.add.text(width / 2, cardY - cardH / 2 + 74, SLIDES[0].title, {
+      fontSize: '13px', fontFamily: 'Arial Black, sans-serif',
+      color: '#00ff88', align: 'center',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(82);
+
+    const captionText = this.add.text(width / 2, cardY - cardH / 2 + 104, SLIDES[0].caption, {
+      fontSize: '13px', color: '#cccccc',
+      wordWrap: { width: width - 90 }, align: 'center', lineSpacing: 5,
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(82);
+
+    // Page dots
+    const dotsGfx = this.add.graphics().setScrollFactor(0).setDepth(82);
+    const drawDots = (active) => {
+      dotsGfx.clear();
+      const dotY = cardY + cardH / 2 - 44;
+      const spacing = 22;
+      const startX = width / 2 - spacing;
+      for (let i = 0; i < 3; i++) {
+        const dx = startX + i * spacing;
+        if (i === active) {
+          dotsGfx.fillStyle(0x00ff88, 1); dotsGfx.fillCircle(dx, dotY, 5);
+        } else {
+          dotsGfx.fillStyle(0x333344, 1); dotsGfx.fillCircle(dx, dotY, 4);
+        }
+      }
+    };
+    drawDots(0);
+
+    // Nav arrows
+    const backBtn = this.add.text(width / 2 - 80, cardY + cardH / 2 - 20, '‹', {
+      fontSize: '38px', color: '#222233',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(82).setInteractive({ useHandCursor: true });
+
+    const nextBtn = this.add.text(width / 2 + 80, cardY + cardH / 2 - 20, '›', {
+      fontSize: '38px', color: '#00ff88',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(82).setInteractive({ useHandCursor: true });
+
+    // Close X button
+    const closeBtn = this.add.text(width / 2 + (width - 40) / 2 - 6, cardY - cardH / 2 + 6, '✕', {
+      fontSize: '14px', color: '#555566',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(83).setInteractive({ useHandCursor: true });
+
+    const allObjs = [backdrop, card, iconText, titleText, captionText, dotsGfx, backBtn, nextBtn, closeBtn];
+    this._htpOverlay = allObjs;
+
+    const showSlide = (idx) => {
+      slideIdx = idx;
+      iconText.setText(ICONS[idx]);
+      titleText.setText(SLIDES[idx].title);
+      captionText.setText(SLIDES[idx].caption);
+      card.setFillStyle(BG_COLORS[idx]);
+      backBtn.setColor(idx > 0 ? '#555566' : '#222233');
+      nextBtn.setColor(idx < 2 ? '#00ff88' : '#666666');
+      drawDots(idx);
+    };
+
+    const closeOverlay = () => {
+      allObjs.forEach(o => { try { o.destroy(); } catch (_) {} });
+      this._htpOverlay = null;
+    };
+
+    backBtn.on('pointerdown', () => { if (slideIdx > 0) showSlide(slideIdx - 1); });
+    nextBtn.on('pointerdown', () => { if (slideIdx < 2) showSlide(slideIdx + 1); });
+    closeBtn.on('pointerdown', closeOverlay);
+    backdrop.on('pointerdown', closeOverlay);
+  }
+
   shutdown() {
-    // Clear all socket listeners so they don't stack if scene restarts
     socket.clearListeners();
     sound.stopBgMusic();
+    stopIdleWatch();
   }
 
   // ─── Button factory ───────────────────────────────────────────────────────
