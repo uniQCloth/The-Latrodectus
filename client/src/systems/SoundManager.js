@@ -223,109 +223,140 @@ export default class SoundManager {
     this._bgGain.gain.value = 0;
     this._bgGain.connect(this._ctx.destination);
 
-    // Fade in over 3 seconds
     const now = this._ctx.currentTime;
     this._bgGain.gain.setValueAtTime(0, now);
-    this._bgGain.gain.linearRampToValueAtTime(0.14, now + 3);
+    this._bgGain.gain.linearRampToValueAtTime(0.20, now + 3);
 
     this._bgOscs = [];
 
-    // Bass drone layer — 3 oscillators with slow amplitude LFO
+    // ── Deep pipe rumble — pressurised water far away ────────────────────
     const makeDrone = (freq, vol, lfoRate) => {
       const osc  = this._ctx.createOscillator();
       const lfo  = this._ctx.createOscillator();
       const lfoG = this._ctx.createGain();
       const gain = this._ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      lfo.type = 'sine';
-      lfo.frequency.value = lfoRate;
-      lfoG.gain.value = vol * 0.25;
+      osc.type = 'sine'; osc.frequency.value = freq;
+      lfo.type = 'sine'; lfo.frequency.value = lfoRate;
+      lfoG.gain.value = vol * 0.20;
       gain.gain.value = vol;
-      lfo.connect(lfoG);
-      lfoG.connect(gain.gain);
-      osc.connect(gain);
-      gain.connect(this._bgGain);
-      osc.start();
-      lfo.start();
+      lfo.connect(lfoG); lfoG.connect(gain.gain);
+      osc.connect(gain); gain.connect(this._bgGain);
+      osc.start(); lfo.start();
       this._bgOscs.push(osc, lfo);
     };
-    makeDrone(55,   0.55, 0.18);  // deep bass A1
-    makeDrone(82.5, 0.30, 0.27);  // E2 — fifth above
-    makeDrone(110,  0.18, 0.41);  // A2 — octave
-    makeDrone(146,  0.10, 0.55);  // D3 — fourth (minor tension)
+    makeDrone(40,  0.50, 0.07);   // sub rumble
+    makeDrone(55,  0.28, 0.13);   // A1 bass
+    makeDrone(110, 0.10, 0.21);   // A2 octave harmonic
 
-    // Eerie melody — A minor pentatonic arpeggio
-    const scale   = [220, 261, 293, 349, 392, 440, 523, 392, 349, 293];
-    let melStep   = 0;
-    const bpm     = 72;
-    const stepMs  = (60000 / bpm) / 2; // 8th notes
+    // ── Continuous distant water rush (looping noise) ─────────────────────
+    const rushBuf = this._ctx.createBuffer(1, this._ctx.sampleRate * 2, this._ctx.sampleRate);
+    const rd = rushBuf.getChannelData(0);
+    for (let i = 0; i < rd.length; i++) rd[i] = Math.random() * 2 - 1;
+    const rushSrc = this._ctx.createBufferSource();
+    rushSrc.buffer = rushBuf; rushSrc.loop = true;
+    const rushLp = this._ctx.createBiquadFilter();
+    rushLp.type = 'lowpass'; rushLp.frequency.value = 220;
+    const rushGain = this._ctx.createGain();
+    rushGain.gain.value = 0.055;
+    rushSrc.connect(rushLp); rushLp.connect(rushGain); rushGain.connect(this._bgGain);
+    rushSrc.start();
+    this._bgOscs.push(rushSrc);
+
+    // ── Hollow pipe drip synthesiser ──────────────────────────────────────
+    // Each drip: water transient + bubble frequency sweep + hollow resonance + echo
+    const _drip = (freq, vol, at = 0) => {
+      if (!this._ctx || this._muted) return;
+      const t = this._ctx.currentTime + at;
+
+      // Plop transient — bandpass noise burst
+      const nb = this._ctx.createBuffer(1, Math.ceil(this._ctx.sampleRate * 0.03), this._ctx.sampleRate);
+      const nd = nb.getChannelData(0);
+      for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+      const ns = this._ctx.createBufferSource(); ns.buffer = nb;
+      const nf = this._ctx.createBiquadFilter();
+      nf.type = 'bandpass'; nf.frequency.value = freq * 2.2; nf.Q.value = 7;
+      const ng = this._ctx.createGain();
+      ng.gain.setValueAtTime(vol * 0.75, t);
+      ng.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+      ns.connect(nf); nf.connect(ng); ng.connect(this._bgGain);
+      ns.start(t); ns.stop(t + 0.035);
+
+      // Bubble oscillation — frequency sweeps down as bubble collapses (the "hollow" character)
+      const bOsc = this._ctx.createOscillator();
+      bOsc.type = 'sine';
+      bOsc.frequency.setValueAtTime(freq * 1.5, t);
+      bOsc.frequency.exponentialRampToValueAtTime(freq * 0.92, t + 0.09);
+      const bG = this._ctx.createGain();
+      bG.gain.setValueAtTime(vol * 0.55, t);
+      bG.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+      bOsc.connect(bG); bG.connect(this._bgGain);
+      bOsc.start(t); bOsc.stop(t + 0.15);
+
+      // Hollow resonance body — triangle, long decay through pipe walls
+      const rOsc = this._ctx.createOscillator();
+      rOsc.type = 'triangle'; rOsc.frequency.value = freq;
+      const rG = this._ctx.createGain();
+      rG.gain.setValueAtTime(vol, t + 0.004);
+      rG.gain.setValueAtTime(vol * 0.45, t + 0.09);
+      rG.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+      rOsc.connect(rG); rG.connect(this._bgGain);
+      rOsc.start(t + 0.002); rOsc.stop(t + 0.80);
+
+      // Echo — reflection off far pipe wall, slightly flat pitch
+      const eOsc = this._ctx.createOscillator();
+      eOsc.type = 'triangle'; eOsc.frequency.value = freq * 0.997;
+      const eG = this._ctx.createGain();
+      eG.gain.setValueAtTime(vol * 0.22, t + 0.16);
+      eG.gain.exponentialRampToValueAtTime(0.001, t + 0.58);
+      eOsc.connect(eG); eG.connect(this._bgGain);
+      eOsc.start(t + 0.16); eOsc.stop(t + 0.62);
+    };
+
+    // ── Melodic drip sequence — A minor pentatonic, hypnotic pattern ──────
+    // Scale: A2 C3 D3 E3 G3 A3 C4 D4
+    const scale   = [220, 261.6, 293.7, 329.6, 392, 440, 523.3, 587.3];
+    // 16-step pattern — feels like water finding its rhythm
+    const pattern = [0, 2, 4, 3, 2, 0, 1, 3, 5, 4, 3, 1, 0, 4, 2, 0];
+    let step = 0;
+    const bpm    = 76;
+    const beatMs = 60000 / bpm;
 
     this._melodyInterval = setInterval(() => {
       if (!this._bgRunning || this._muted) return;
-      const freq = scale[melStep % scale.length];
-      const t    = this._ctx.currentTime;
-      const osc  = this._ctx.createOscillator();
-      const gain = this._ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.07, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      osc.connect(gain);
-      gain.connect(this._bgGain);
-      osc.start(t);
-      osc.stop(t + 0.6);
-      melStep++;
-    }, stepMs);
+      const s = step % pattern.length;
+      // Irregular: skip ~30% of beats — water doesn't drip perfectly on-time
+      if (Math.random() > 0.30) {
+        const freq = scale[pattern[s]];
+        // Accent on beat 1 and beat 9 of the pattern (the "downbeats")
+        const vol  = (s === 0 || s === 8) ? 0.22 : 0.13 + Math.random() * 0.05;
+        _drip(freq, vol);
+      }
+      step++;
+    }, beatMs * 0.5); // 8th-note grid
 
-    // Kick pulse — every beat, low sine sweep (heartbeat quality)
-    const beatMs = 60000 / bpm;
-    this._kickInterval = setInterval(() => {
-      if (!this._bgRunning || this._muted) return;
-      const t    = this._ctx.currentTime;
-      const osc  = this._ctx.createOscillator();
-      const gain = this._ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(90, t);
-      osc.frequency.exponentialRampToValueAtTime(22, t + 0.18);
-      gain.gain.setValueAtTime(0.6, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-      osc.connect(gain);
-      gain.connect(this._bgGain);
-      osc.start(t);
-      osc.stop(t + 0.25);
-    }, beatMs);
+    // ── Random ambient drips — background texture, irregular timing ───────
+    const schedAmbient = () => {
+      if (!this._bgRunning) return;
+      const f   = scale[Math.floor(Math.random() * scale.length)];
+      const oct = Math.random() < 0.2 ? 0.5 : 1; // occasional octave-down deep drip
+      _drip(f * oct, 0.07 + Math.random() * 0.08);
+      this._ambientDripTO = setTimeout(schedAmbient, 800 + Math.random() * 2400);
+    };
+    schedAmbient();
 
-    // Hi-hat noise — off-beats
-    this._hatInterval = setInterval(() => {
+    // ── Deep slow accent drip — large drop every few beats ───────────────
+    this._deepDripInterval = setInterval(() => {
       if (!this._bgRunning || this._muted) return;
-      const t       = this._ctx.currentTime;
-      const bufSize = Math.ceil(this._ctx.sampleRate * 0.05);
-      const buf     = this._ctx.createBuffer(1, bufSize, this._ctx.sampleRate);
-      const d       = buf.getChannelData(0);
-      for (let i = 0; i < bufSize; i++) d[i] = Math.random() * 2 - 1;
-      const src  = this._ctx.createBufferSource();
-      const filt = this._ctx.createBiquadFilter();
-      const gain = this._ctx.createGain();
-      src.buffer  = buf;
-      filt.type   = 'highpass';
-      filt.frequency.value = 6000;
-      gain.gain.setValueAtTime(0.08, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-      src.connect(filt);
-      filt.connect(gain);
-      gain.connect(this._bgGain);
-      src.start(t);
-      src.stop(t + 0.06);
-    }, beatMs);
+      if (Math.random() < 0.5) _drip(55 + Math.random() * 50, 0.32);
+    }, beatMs * 4);
   }
 
   stopBgMusic(fadeSecs = 1.5) {
     if (!this._bgRunning) return;
     this._bgRunning = false;
     clearInterval(this._melodyInterval);
-    clearInterval(this._kickInterval);
-    clearInterval(this._hatInterval);
+    clearInterval(this._deepDripInterval);
+    clearTimeout(this._ambientDripTO);
     if (this._bgGain && this._ctx) {
       const now = this._ctx.currentTime;
       this._bgGain.gain.setValueAtTime(this._bgGain.gain.value, now);
@@ -341,7 +372,148 @@ export default class SoundManager {
     if (!this._bgGain || !this._ctx) return;
     const now = this._ctx.currentTime;
     this._bgGain.gain.setValueAtTime(this._bgGain.gain.value, now);
-    this._bgGain.gain.linearRampToValueAtTime(muted ? 0 : 0.14, now + 0.3);
+    this._bgGain.gain.linearRampToValueAtTime(muted ? 0 : 0.20, now + 0.3);
+  }
+
+  // ── Cinematic intro music ────────────────────────────────────────────────
+  // Original "Climbing Spider" theme: ascending/descending in A minor,
+  // digital square-wave melody over kick-snare-hat beat.
+  // Captures the climbing-spider spirit without copying Itsy Bitsy Spider.
+  startCinematicMusic() {
+    if (!this._ctx) return;
+    if (this._cinRunning) return;
+    this._cinRunning = true;
+    this._resume();
+
+    const ctx    = this._ctx;
+    const BPM    = 108;
+    const eighth = 60 / BPM / 2;   // ~0.278 s per 8th note
+
+    const cinGain = ctx.createGain();
+    cinGain.gain.setValueAtTime(0, ctx.currentTime);
+    cinGain.gain.linearRampToValueAtTime(0.30, ctx.currentTime + 1.4);
+    cinGain.connect(ctx.destination);
+    this._cinGain = cinGain;
+
+    // ── Melody: 4-bar loop, original ascending/descending phrase ─────────
+    // Bar 1 — spider climbs (stepwise up)
+    // Bar 2 — wobbles at the top (rests give a syncopated skip)
+    // Bar 3 — descends (water coming, reverse steps)
+    // Bar 4 — resolves, ready to loop
+    const MEL = [
+      329.6, 329.6, 392,   440,   392,   440,   523.3, 440,
+      392,   329.6, 392,   440,   0,     329.6, 392,   0,
+      440,   392,   329.6, 293.7, 329.6, 293.7, 261.6, 293.7,
+      329.6, 329.6, 392,   440,   392,   329.6, 329.6, 0,
+    ];
+
+    // ── Bass: triangle, quarter-note pulse ────────────────────────────────
+    const BASS = [
+      110, 130.8, 110, 164.8,
+      110, 164.8, 110, 164.8,
+      174.6, 130.8, 196, 164.8,
+      110, 110, 164.8, 110,
+    ];
+
+    const total = MEL.length;   // 32 steps = 4 bars
+    let step = 0;
+
+    const kick = (at) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.setValueAtTime(110, at);
+      o.frequency.exponentialRampToValueAtTime(42, at + 0.07);
+      g.gain.setValueAtTime(0.50, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.16);
+      o.connect(g); g.connect(cinGain);
+      o.start(at); o.stop(at + 0.18);
+    };
+
+    const snare = (at) => {
+      const len = Math.ceil(ctx.sampleRate * 0.10);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d   = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const bp  = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 0.7;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.20, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.10);
+      src.connect(bp); bp.connect(g); g.connect(cinGain);
+      src.start(at); src.stop(at + 0.11);
+    };
+
+    const hat = (at, vol) => {
+      const len = Math.ceil(ctx.sampleRate * 0.032);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d   = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const hp  = ctx.createBiquadFilter();
+      hp.type = 'highpass'; hp.frequency.value = 8000;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(vol, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.032);
+      src.connect(hp); hp.connect(g); g.connect(cinGain);
+      src.start(at); src.stop(at + 0.035);
+    };
+
+    const tick = () => {
+      if (!this._cinRunning) return;
+      const now  = ctx.currentTime;
+      const s    = step % total;
+      const beat = s % 8;           // position within the current bar (0-7)
+
+      // Lead melody — square wave (chiptune digital character)
+      const freq = MEL[s];
+      if (freq > 0) {
+        const o = ctx.createOscillator();
+        o.type = 'square';
+        o.frequency.setValueAtTime(freq, now);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.12, now);
+        g.gain.setValueAtTime(0.12, now + eighth * 0.55);
+        g.gain.exponentialRampToValueAtTime(0.001, now + eighth * 0.88);
+        o.connect(g); g.connect(cinGain);
+        o.start(now); o.stop(now + eighth);
+      }
+
+      // Bass — every quarter note (every 2 eighth steps)
+      if (beat % 2 === 0) {
+        const bf = BASS[Math.floor(s / 2)];
+        const o  = ctx.createOscillator();
+        o.type   = 'triangle';
+        o.frequency.setValueAtTime(bf, now);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.26, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + eighth * 1.7);
+        o.connect(g); g.connect(cinGain);
+        o.start(now); o.stop(now + eighth * 2);
+      }
+
+      // Drums: kick on 1 & 3, snare on 2 & 4, hi-hat every 8th
+      if (beat === 0 || beat === 4) kick(now);
+      if (beat === 2 || beat === 6) snare(now);
+      hat(now, beat % 2 === 0 ? 0.12 : 0.06);
+
+      step++;
+    };
+
+    this._cinInterval = setInterval(tick, eighth * 1000);
+    tick();  // fire immediately on beat 1
+  }
+
+  stopCinematicMusic(fadeSecs = 1.0) {
+    this._cinRunning = false;
+    clearInterval(this._cinInterval);
+    this._cinInterval = null;
+    if (this._cinGain && this._ctx) {
+      const now = this._ctx.currentTime;
+      this._cinGain.gain.setValueAtTime(this._cinGain.gain.value, now);
+      this._cinGain.gain.linearRampToValueAtTime(0, now + fadeSecs);
+      setTimeout(() => { this._cinGain = null; }, (fadeSecs + 0.1) * 1000);
+    }
   }
 
   toggleMute() {

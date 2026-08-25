@@ -26,19 +26,27 @@ export default class GameScene extends Phaser.Scene {
     this._bathroomTimer  = Phaser.Math.Between(15000, 30000); // bathroom openings
     this._floodWarnTimer = Phaser.Math.Between(12000, 22000); // fake flood warnings
     this._floodWarnActive = false;
-    this._floodGen       = 0;         // generation counter — invalidates stale flood callbacks
-    this._activeFloodGfx = null;      // ref to current flood wave graphics for early cleanup
+    this._floodGen       = 0;         // generation counter — invalidates stale callbacks
     this._slipTimer      = Phaser.Math.Between(6000, 14000);
     this._slipping       = false;
     this._slipTween      = null;
     this._magicWormTimer = Phaser.Math.Between(120000, 360000);
     this._magicWormActive = false;
     this._magicTileBonus  = 0;
+    this._pipeFlashPending     = false;
+    this._serverMultiplier     = 1;
+    this._spiderMilestoneLevel = 0;
+    this._waterSurfaceY        = null;  // screen-Y of water surface; null = off
+    this._waterSurging         = false; // true while crash surge animation runs
 
     // ── Pipe geometry ─────────────────────────────────────────────────────
     this.drawWorldBackground();
     this.drawPipeSeams();        // world space — scroll past spider
     this.drawPipeWalls();        // screen space — always visible
+
+    // ── Persistent rising water graphics (depth 6-7, behind spider at 10) ─
+    this._waterBg = this.add.graphics().setScrollFactor(0).setDepth(6);
+    this._waterFg = this.add.graphics().setScrollFactor(0).setDepth(7);
 
     // ── Persistent wall crawlers (always visible) ─────────────────────────
     this._spawnPersistentCrawlers();
@@ -80,6 +88,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('glowworm:collected',  (n) => { this.glowWorms = n; });
     this.events.on('server:tick', ({ multiplier, tiles }) => {
       this.serverTiles = tiles;
+      this._serverMultiplier = multiplier;
       this.serverMode  = true;
     });
     this.events.on('server:betting', () => this.resetSpiderToGround());
@@ -97,14 +106,14 @@ export default class GameScene extends Phaser.Scene {
   drawWorldBackground() {
     const { width } = this.scale;
     const bg = this.add.graphics().setDepth(0);
-    // Outer wall backing (very dark — walls are drawn on top)
-    bg.fillStyle(0x1a1a1a, 1);
+    // Outer wall backing — dark so pipe walls stand out
+    bg.fillStyle(0x3a3a3a, 1);
     bg.fillRect(0, -60000, width, 70000);
-    // Inner pipe channel — proper mid-grey concrete
-    bg.fillStyle(0x525252, 1);
+    // Inner pipe channel — bright concrete grey
+    bg.fillStyle(0x888888, 1);
     bg.fillRect(PIPE_WALL, -60000, width - PIPE_WALL * 2, 70000);
     // Subtle centre-line shadow for depth
-    bg.fillStyle(0x3e3e3e, 0.35);
+    bg.fillStyle(0x606060, 0.25);
     bg.fillRect(width / 2 - 18, -60000, 36, 70000);
   }
 
@@ -124,25 +133,25 @@ export default class GameScene extends Phaser.Scene {
         : Phaser.Math.Between(innerR - 24, innerR);
       const sy  = Phaser.Math.Between(-60000, this.groundY);
       const len = Phaser.Math.Between(8, 55);
-      const col = Phaser.Utils.Array.GetRandom([0x555555, 0x444444, 0x6a4020, 0x333333]);
-      g.lineStyle(Phaser.Math.Between(1, 2), col, 0.15 + Math.random() * 0.25);
+      const col = Phaser.Utils.Array.GetRandom([0x666666, 0x5a5a5a, 0x7a5030, 0x505050]);
+      g.lineStyle(Phaser.Math.Between(1, 2), col, 0.20 + Math.random() * 0.30);
       g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + Phaser.Math.Between(-3, 3), sy + len); g.strokePath();
     }
 
     // Horizontal seams every 180 px — create sense of climbing
     for (let y = this.groundY; y > -60000; y -= 180) {
       // Dark seam band
-      g.fillStyle(0x0a0a0a, 1);
+      g.fillStyle(0x444444, 1);
       g.fillRect(innerL, y - 3, innerR - innerL, 6);
       // Metal rivets
       [innerL + 6, innerR - 6].forEach(rx => {
-        g.fillStyle(0x555555, 1); g.fillCircle(rx, y, 4);
-        g.fillStyle(0x999999, 0.5); g.fillCircle(rx - 1, y - 1, 1.5);
+        g.fillStyle(0x777777, 1); g.fillCircle(rx, y, 4);
+        g.fillStyle(0xbbbbbb, 0.5); g.fillCircle(rx - 1, y - 1, 1.5);
       });
     }
 
     // Centre groove
-    g.lineStyle(1, 0x0f0f0f, 0.3);
+    g.lineStyle(1, 0x505050, 0.35);
     g.beginPath(); g.moveTo(width / 2, this.groundY); g.lineTo(width / 2, -60000); g.strokePath();
 
     // ── Static debris stuck to pipe walls ──────────────────────────────
@@ -186,18 +195,18 @@ export default class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     const wL = this.add.graphics().setScrollFactor(0).setDepth(8);
-    wL.fillStyle(0x2e2e2e, 1); wL.fillRect(0, 0, PIPE_WALL, height);
-    // Inner edge — slightly lighter, worn metal
-    wL.fillStyle(0x3a3a3a, 0.9); wL.fillRect(PIPE_WALL - 12, 0, 12, height);
-    wL.fillStyle(0x4a4a4a, 0.4); wL.fillRect(PIPE_WALL - 4, 0, 4, height);
-    // Rust stains down edge
-    wL.fillStyle(0x6a3010, 0.15); wL.fillRect(PIPE_WALL - 8, 0, 8, height);
+    wL.fillStyle(0x686868, 1); wL.fillRect(0, 0, PIPE_WALL, height);
+    // Inner edge — lighter ridge where wall meets pipe interior
+    wL.fillStyle(0x909090, 0.9); wL.fillRect(PIPE_WALL - 12, 0, 12, height);
+    wL.fillStyle(0xa8a8a8, 0.4); wL.fillRect(PIPE_WALL - 4, 0, 4, height);
+    // Subtle rust tint at seam
+    wL.fillStyle(0x6a3010, 0.10); wL.fillRect(PIPE_WALL - 8, 0, 8, height);
 
     const wR = this.add.graphics().setScrollFactor(0).setDepth(8);
-    wR.fillStyle(0x2e2e2e, 1); wR.fillRect(width - PIPE_WALL, 0, PIPE_WALL, height);
-    wR.fillStyle(0x3a3a3a, 0.9); wR.fillRect(width - PIPE_WALL, 0, 12, height);
-    wR.fillStyle(0x4a4a4a, 0.4); wR.fillRect(width - PIPE_WALL, 0, 4, height);
-    wR.fillStyle(0x6a3010, 0.15); wR.fillRect(width - PIPE_WALL, 0, 8, height);
+    wR.fillStyle(0x686868, 1); wR.fillRect(width - PIPE_WALL, 0, PIPE_WALL, height);
+    wR.fillStyle(0x909090, 0.9); wR.fillRect(width - PIPE_WALL, 0, 12, height);
+    wR.fillStyle(0xa8a8a8, 0.4); wR.fillRect(width - PIPE_WALL, 0, 4, height);
+    wR.fillStyle(0x6a3010, 0.10); wR.fillRect(width - PIPE_WALL, 0, 8, height);
 
     this.pipeInnerLeft  = PIPE_WALL;
     this.pipeInnerRight = width - PIPE_WALL;
@@ -438,7 +447,7 @@ export default class GameScene extends Phaser.Scene {
     const innerR = this.pipeInnerRight - 6;
 
     // Weighted type selection (roll 0-119)
-    const roll = Phaser.Math.Between(0, 119);
+    const roll = Phaser.Math.Between(0, 129);
     const type = roll < 16  ? 0   // water drop
                : roll < 28  ? 1   // bubble
                : roll < 38  ? 2   // web thread
@@ -458,7 +467,8 @@ export default class GameScene extends Phaser.Scene {
                : roll < 114 ? 16  // centipede (wall crawler)
                : roll < 116 ? 17  // contact lens
                : roll < 118 ? 18  // cigarette butt
-               : 19;              // matchstick
+               : roll < 124 ? 19  // matchstick
+               : 20;              // mushroom cap (rare)
 
     const x = Phaser.Math.Between(innerL, innerR);
 
@@ -1116,7 +1126,7 @@ export default class GameScene extends Phaser.Scene {
         onComplete: () => cig.destroy(),
       });
 
-    } else {
+    } else if (type === 19) {
       // ── Matchstick — spent head, tumbles ──
       const startY = -Phaser.Math.Between(5, 40);
       const match = this.add.graphics().setScrollFactor(0).setDepth(4);
@@ -1140,6 +1150,54 @@ export default class GameScene extends Phaser.Scene {
           if (flicker > 0) { match.fillStyle(0xff4400, flicker); match.fillCircle(0, -18, 3); }
         },
         onComplete: () => match.destroy(),
+      });
+
+    } else {
+      // ── Mushroom cap — colorful, tumbles down the pipe ──
+      const startY = -Phaser.Math.Between(5, 45);
+      const mush = this.add.graphics().setScrollFactor(0).setDepth(4);
+      mush.x = x; mush.y = startY;
+      const capCol = Phaser.Utils.Array.GetRandom([0xcc3300, 0xdd8800, 0x993322, 0x556622, 0xaa2255, 0x885533, 0xff5500]);
+      const capW  = Phaser.Math.Between(14, 26);
+      const stemH = Phaser.Math.Between(7, 14);
+      const baseX = x;
+      const drift = Phaser.Math.Between(-30, 30);
+
+      const drawMush = () => {
+        mush.clear();
+        // Stem
+        mush.fillStyle(0xddd0aa, 0.9);
+        mush.fillRect(-3, 0, 7, stemH);
+        mush.fillStyle(0xf0e8cc, 0.5);
+        mush.fillRect(-2, 1, 3, stemH - 2);
+        // Gills under cap
+        mush.lineStyle(0.5, 0xbbaa88, 0.45);
+        for (let gi = -2; gi <= 2; gi++) {
+          mush.beginPath(); mush.moveTo(gi * 2.2, 0); mush.lineTo(gi * 2.5 - 0.5, stemH * 0.45); mush.strokePath();
+        }
+        // Cap dome
+        mush.fillStyle(capCol, 0.95);
+        mush.fillEllipse(0, -stemH * 0.45, capW, stemH * 0.85);
+        mush.fillEllipse(0, -stemH * 0.9, capW * 1.08, stemH * 0.72);
+        // White spots
+        mush.fillStyle(0xffffff, 0.82);
+        mush.fillCircle(-capW * 0.22, -stemH * 0.72, capW * 0.11);
+        mush.fillCircle(capW * 0.2, -stemH * 0.58, capW * 0.09);
+        mush.fillCircle(capW * 0.04, -stemH * 1.08, capW * 0.08);
+        // Cap sheen
+        mush.fillStyle(0xffffff, 0.18);
+        mush.fillEllipse(-capW * 0.15, -stemH * 1.0, capW * 0.5, stemH * 0.25);
+      };
+
+      drawMush();
+      this.tweens.add({
+        targets: mush,
+        y: height + 65,
+        angle: Phaser.Math.Between(-100, 100),
+        duration: Phaser.Math.Between(1700, 3400),
+        ease: 'Power2',
+        onUpdate: (tween) => { mush.x = baseX + drift * tween.progress; drawMush(); },
+        onComplete: () => mush.destroy(),
       });
     }
   }
@@ -1407,6 +1465,130 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── Post-flood white flash — visually clears blue water from pipe ─────────
+
+  _flashPipeWhite() {
+    if (this._pipeFlashPending) return;
+    this._pipeFlashPending = true;
+    const { width, height } = this.scale;
+    const innerW = width - PIPE_WALL * 2;
+    const pf = this.add.graphics().setScrollFactor(0).setDepth(22);
+    pf.fillStyle(0xffffff, 1);
+    pf.fillRect(PIPE_WALL, 0, innerW, height);
+    this.tweens.add({ targets: pf, alpha: 0, duration: 550, ease: 'Power2',
+      onComplete: () => { pf.destroy(); this._pipeFlashPending = false; } });
+  }
+
+  // ── Persistent water — drawn every frame during live rounds ─────────────
+
+  _drawPersistentWater(surfaceY) {
+    const { width, height } = this.scale;
+    const innerW = width - PIPE_WALL * 2;
+    const t = this.time.now * 0.003;
+
+    this._waterBg.clear();
+    this._waterBg.fillStyle(0x000c22, 0.90);
+    this._waterBg.fillRect(PIPE_WALL, surfaceY, innerW, height - surfaceY + 4);
+
+    this._waterFg.clear();
+    if (surfaceY >= height) return;
+    this._waterFg.fillStyle(0x0d3d99, 0.78);
+    this._waterFg.beginPath();
+    let first = true;
+    for (let xi = 0; xi <= 26; xi++) {
+      const wx = PIPE_WALL + (innerW / 26) * xi;
+      const wy = surfaceY - 10 + Math.sin(t + xi * 0.42) * 7 + Math.cos(t * 0.75 + xi * 0.28) * 4;
+      if (first) { this._waterFg.moveTo(wx, wy); first = false; }
+      else this._waterFg.lineTo(wx, wy);
+    }
+    this._waterFg.lineTo(PIPE_WALL + innerW, height + 4);
+    this._waterFg.lineTo(PIPE_WALL, height + 4);
+    this._waterFg.closePath(); this._waterFg.fillPath();
+    this._waterFg.fillStyle(0xffffff, 0.07);
+    this._waterFg.fillRect(PIPE_WALL, surfaceY - 4, innerW, 7);
+  }
+
+  // ── Crash surge — water rushes up and fills the pipe ─────────────────────
+
+  _surgeWaterCrash(floodGen) {
+    const { width, height } = this.scale;
+    const innerW = width - PIPE_WALL * 2;
+    this._waterSurging = true;
+
+    // Raise water to front depth for crash so it covers the spider
+    this._waterBg.setDepth(19);
+    this._waterFg.setDepth(20);
+
+    const startY = this._waterSurfaceY ?? height * 0.82;
+    const proxy  = { y: startY };
+    const draw   = () => { this._waterSurfaceY = proxy.y; this._drawPersistentWater(proxy.y); };
+
+    // Phase 1 — surge to spider level (fast, Power4)
+    this.tweens.add({
+      targets: proxy, y: height / 2 - 12, duration: 380, ease: 'Power4',
+      onUpdate: draw,
+      onComplete: () => {
+        if (this._floodGen !== floodGen) return;
+        this.cameras.main.flash(200, 180, 220, 255);
+        if (this.spider?.isAlive) this.spider.die('flood');
+
+        // Foam burst at impact
+        for (let i = 0; i < 22; i++) {
+          const imp = this.add.graphics().setScrollFactor(0).setDepth(25);
+          imp.fillStyle(0xffffff, 0.9);
+          imp.fillCircle(0, 0, 3 + Math.random() * 12);
+          imp.x = PIPE_WALL + Math.random() * innerW;
+          imp.y = height / 2 + Math.random() * 30;
+          this.tweens.add({ targets: imp,
+            y: `+=${Phaser.Math.Between(-20, 90)}`, x: `+=${Phaser.Math.Between(-48, 48)}`,
+            alpha: 0, duration: 200 + Math.random() * 200, ease: 'Power2',
+            onComplete: () => imp.destroy() });
+        }
+
+        // Phase 2 — fill rest of pipe above spider
+        this.tweens.add({
+          targets: proxy, y: -80, duration: 550, ease: 'Power3',
+          onUpdate: draw,
+          onComplete: () => {
+            if (this._floodGen !== floodGen) return;
+            // Churning bubbles in filled water column
+            for (let i = 0; i < 28; i++) {
+              this.time.delayedCall(i * 55, () => {
+                if (this._floodGen !== floodGen) return;
+                const bub = this.add.graphics().setScrollFactor(0).setDepth(24);
+                const br  = 4 + Math.random() * 15;
+                bub.lineStyle(1.5, 0xaaddff, 0.6); bub.strokeCircle(0, 0, br);
+                bub.fillStyle(0x88bbff, 0.05); bub.fillCircle(0, 0, br);
+                bub.x = PIPE_WALL + Math.random() * innerW;
+                bub.y = height * 0.1 + Math.random() * height * 0.85;
+                this.tweens.add({ targets: bub,
+                  y: bub.y - Phaser.Math.Between(80, 300),
+                  x: bub.x + Phaser.Math.Between(-20, 20),
+                  alpha: 0, duration: Phaser.Math.Between(600, 2000), ease: 'Sine.easeIn',
+                  onComplete: () => bub.destroy() });
+              });
+            }
+            // Phase 3 — drain after hold
+            this.time.delayedCall(2200, () => {
+              if (this._floodGen !== floodGen) return;
+              this.tweens.add({
+                targets: proxy, y: height + 110, duration: 900, ease: 'Power2',
+                onUpdate: draw,
+                onComplete: () => {
+                  this._waterBg.clear().setDepth(6);
+                  this._waterFg.clear().setDepth(7);
+                  this._waterSurfaceY = null;
+                  this._waterSurging  = false;
+                  this._flashPipeWhite();
+                },
+              });
+            });
+          },
+        });
+      },
+    });
+  }
+
   // ── Server crash — wave rushes DOWN the pipe and hits the spider ─────────
 
   triggerServerFlood() {
@@ -1415,7 +1597,6 @@ export default class GameScene extends Phaser.Scene {
     const innerW = width - PIPE_WALL * 2;
 
     sound.playJumpScareCrash();
-    this.cameras.main.shake(1800, 0.11);
 
     // Instant white flash
     const flash = this.add.graphics().setScrollFactor(0).setDepth(28);
@@ -1430,178 +1611,11 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: shockwave, alpha: 0, scaleY: 1.03, duration: 280, ease: 'Power2',
       onComplete: () => shockwave.destroy() });
 
-    const waveDelay = 90;
-
-    // ── Water body grows from top of pipe downward ────────────────────────
-    const layerDeep  = this.add.graphics().setScrollFactor(0).setDepth(19);
-    const layerMain  = this.add.graphics().setScrollFactor(0).setDepth(20);
-    const layerShine = this.add.graphics().setScrollFactor(0).setDepth(21);
-    const bodyProxy  = { h: 0 };
-
-    this.tweens.add({
-      targets: bodyProxy, h: height + 30, duration: 580, delay: waveDelay, ease: 'Power3',
-      onUpdate: () => {
-        const h = bodyProxy.h;
-        layerDeep.clear();
-        layerDeep.fillStyle(0x000820, 1);
-        layerDeep.fillRect(PIPE_WALL, 0, innerW, h);
-
-        layerMain.clear();
-        layerMain.fillStyle(0x001a66, 0.96);
-        layerMain.fillRect(PIPE_WALL, 0, innerW, h);
-
-        layerShine.clear();
-        layerShine.fillStyle(0x1144cc, 0.45);
-        layerShine.fillRect(PIPE_WALL, 0, innerW, h * 0.55);
-      },
-    });
-
-    // ── Wave face — drawn at top of pipe, rushes down to hit the spider ───
-    const waveface = this.add.graphics().setScrollFactor(0).setDepth(22);
-    const segs = 20;
-    // Crest body
-    waveface.fillStyle(0x1155cc, 0.92);
-    waveface.fillRect(PIPE_WALL, 0, innerW, 90);
-    // Curling sinusoidal lip
-    for (let i = 0; i < segs; i++) {
-      const sx   = PIPE_WALL + (innerW / segs) * i;
-      const sw   = innerW / segs + 1;
-      const curl = 28 + Math.sin((i / segs) * Math.PI * 3) * 14;
-      waveface.fillStyle(0x000d33, 0.85);
-      waveface.fillEllipse(sx + sw / 2, curl / 2, sw, curl);
-      waveface.fillStyle(0x55aaff, 0.75);
-      waveface.fillEllipse(sx + sw / 2, curl / 2 - curl * 0.28, sw, curl * 0.45);
-    }
-    // Foam blobs on crest
-    for (let i = 0; i < 38; i++) {
-      const bx = PIPE_WALL + Math.random() * innerW;
-      const by = 5 + Math.random() * 78;
-      const br = 9 + Math.random() * 22;
-      waveface.fillStyle(0xffffff, 0.28 + Math.random() * 0.52);
-      waveface.fillEllipse(bx, by, br * 2.8, br * 0.75);
-    }
-    // Hard white froth line at leading edge
-    waveface.fillStyle(0xeef8ff, 0.9);
-    waveface.fillRect(PIPE_WALL, 82, innerW, 8);
-    waveface.y = -95;  // start just above visible screen
-
-    // Advance droplets shot ahead of the wave
-    for (let i = 0; i < 12; i++) {
-      this.time.delayedCall(waveDelay + i * 9, () => {
-        const d = this.add.graphics().setScrollFactor(0).setDepth(23);
-        d.fillStyle(0x4488cc, 0.85);
-        d.fillEllipse(0, 0, 5, 18);
-        d.x = PIPE_WALL + Math.random() * innerW;
-        d.y = 5;
-        this.tweens.add({
-          targets: d, y: `+=${Phaser.Math.Between(120, 280)}`, alpha: 0,
-          duration: Phaser.Math.Between(160, 280), ease: 'Power2',
-          onComplete: () => d.destroy(),
-        });
-      });
-    }
-
-    // Debris tumbling from top to bottom with the wave
-    const debrisGfx = [];
-    for (let i = 0; i < 7; i++) {
-      const deb = this.add.graphics().setScrollFactor(0).setDepth(21);
-      deb.fillStyle([0x111111, 0x222200, 0x221100, 0x1a1a2e][i % 4], 0.85);
-      const dw = 8 + Math.random() * 20, dh = 5 + Math.random() * 12;
-      deb.fillRect(-dw / 2, -dh / 2, dw, dh);
-      deb.x = PIPE_WALL + Math.random() * innerW;
-      deb.y = 5 + Math.random() * 50;
-      deb.angle = Phaser.Math.Between(-60, 60);
-      debrisGfx.push(deb);
-      this.tweens.add({
-        targets: deb, y: height + 80,
-        angle: deb.angle + Phaser.Math.Between(-180, 180),
-        alpha: 0,
-        duration: 480 + i * 30, delay: waveDelay + 10, ease: 'Power3',
-        onComplete: () => deb.destroy(),
-      });
-    }
-
-    // ── Generation guard + cleanup ─────────────────────────────────────────
-    const floodGfx = [layerDeep, layerMain, layerShine, waveface];
-    this._activeFloodGfx = floodGfx;
     const floodGen = ++this._floodGen;
-
-    const destroyFloodGfx = () => {
-      if (this._activeFloodGfx === floodGfx) this._activeFloodGfx = null;
-      floodGfx.forEach(g => { if (g?.scene) { this.tweens.killTweensOf(g); g.destroy(); } });
-    };
-
-    // ── Wave face rushes from top of screen DOWN to spider at height/2 ────
-    this.tweens.add({
-      targets: waveface,
-      y: height / 2 - 45,    // leading edge reaches spider mid-screen
-      duration: 240,
-      delay: waveDelay + 10,
-      ease: 'Power4',
-      onComplete: () => {
-        if (this._floodGen !== floodGen) { destroyFloodGfx(); return; }
-
-        // IMPACT — wave smashes into the spider
-        this.cameras.main.flash(200, 180, 220, 255);
-        if (this.spider?.isAlive) this.spider.die('flood');
-
-        // Foam explosion at spider level
-        for (let i = 0; i < 22; i++) {
-          const imp = this.add.graphics().setScrollFactor(0).setDepth(25);
-          imp.fillStyle(0xffffff, 0.9);
-          imp.fillCircle(0, 0, 4 + Math.random() * 13);
-          imp.x = PIPE_WALL + Math.random() * innerW;
-          imp.y = height / 2 + Math.random() * 35;
-          this.tweens.add({
-            targets: imp,
-            y: `+=${Phaser.Math.Between(-20, 90)}`,
-            x: `+=${Phaser.Math.Between(-50, 50)}`,
-            alpha: 0,
-            duration: 250 + Math.random() * 200,
-            ease: 'Power2',
-            onComplete: () => imp.destroy(),
-          });
-        }
-
-        // Wave face continues PAST spider all the way to bottom of pipe
-        this.tweens.add({
-          targets: waveface, y: height + 60, duration: 300, ease: 'Power2',
-          onComplete: () => { if (waveface.scene) waveface.destroy(); },
-        });
-
-        // Churning bubbles rising through the filled water column
-        for (let i = 0; i < 30; i++) {
-          this.time.delayedCall(i * 52, () => {
-            if (this._floodGen !== floodGen) return;
-            if (!layerMain.scene) return;
-            const bub = this.add.graphics().setScrollFactor(0).setDepth(24);
-            const br  = 4 + Math.random() * 17;
-            bub.lineStyle(1.5, 0xaaddff, 0.65);
-            bub.strokeCircle(0, 0, br);
-            bub.fillStyle(0x88bbff, 0.06); bub.fillCircle(0, 0, br);
-            bub.x = PIPE_WALL + Math.random() * innerW;
-            bub.y = height * 0.1 + Math.random() * height * 0.85;
-            this.tweens.add({
-              targets: bub,
-              y: bub.y - Phaser.Math.Between(90, 360),
-              x: bub.x + Phaser.Math.Between(-22, 22),
-              alpha: 0,
-              duration: Phaser.Math.Between(650, 2200),
-              ease: 'Sine.easeIn',
-              onComplete: () => bub.destroy(),
-            });
-          });
-        }
-
-        // Drain water body after 2.2s
-        this.time.delayedCall(2200, () => {
-          if (this._floodGen !== floodGen) return;
-          this.tweens.add({
-            targets: [layerDeep, layerMain, layerShine], alpha: 0, duration: 1000,
-            onComplete: () => destroyFloodGfx(),
-          });
-        });
-      },
+    // Let the flash + shockwave settle, then surge water from below
+    this.time.delayedCall(90, () => {
+      if (this._floodGen !== floodGen) return;
+      this._surgeWaterCrash(floodGen);
     });
   }
 
@@ -1703,14 +1717,21 @@ export default class GameScene extends Phaser.Scene {
     if (!this.spider) return;
     const { width, height } = this.scale;
 
-    // Invalidate any in-flight flood animation so its die() never fires
+    // Invalidate any in-flight flood animation so its callbacks never fire
+    this._pipeFlashPending = false;
     this._floodGen++;
 
-    // Immediately wipe flood wave graphics so spider is visible right now
-    if (this._activeFloodGfx) {
-      this._activeFloodGfx.forEach(g => { if (g?.scene) { this.tweens.killTweensOf(g); g.destroy(); } });
-      this._activeFloodGfx = null;
-    }
+    // Stop any in-progress water surge and wipe the persistent water graphics
+    const wasFloodSurging = this._waterSurging;
+    this._waterBg?.clear();
+    this._waterFg?.clear();
+    this._waterBg?.setDepth(6);
+    this._waterFg?.setDepth(7);
+    this._waterSurfaceY = null;
+    this._waterSurging  = false;
+
+    // Flash white inside pipe if crash flood was mid-animation (pipe was full of blue)
+    if (wasFloodSurging) this._flashPipeWhite();
 
     if (this._deathOverlays) {
       this._deathOverlays.forEach(o => o?.destroy());
@@ -1758,7 +1779,12 @@ export default class GameScene extends Phaser.Scene {
     // Reset magic worm state
     this._magicWormActive = false;
     this._magicTileBonus  = 0;
-    this._magicWormTimer  = Phaser.Math.Between(45000, 90000);
+    this._magicWormTimer  = Phaser.Math.Between(120000, 360000);
+
+    // Reset milestone state
+    this._serverMultiplier = 1;
+    this._spiderMilestoneLevel = 0;
+    this.spider?.setMilestoneLevel(0);
   }
 
   // ── Auto climb (server mode) ─────────────────────────────────────────────
@@ -1836,6 +1862,40 @@ export default class GameScene extends Phaser.Scene {
         this._magicWormTimer = Phaser.Math.Between(120000, 360000);
         if (Math.random() < 0.25) this._spawnMagicGlowWorm();
       }
+
+      // Spider milestone color changes (100x / 500x / 1000x)
+      if (this._serverMultiplier > 1) {
+        const ml = this._serverMultiplier >= 1000 ? 3
+                 : this._serverMultiplier >= 500  ? 2
+                 : this._serverMultiplier >= 100  ? 1 : 0;
+        if (ml !== this._spiderMilestoneLevel) {
+          this._spiderMilestoneLevel = ml;
+          this.spider?.setMilestoneLevel(ml);
+        }
+      }
+    }
+
+    // Persistent water — always rising, always chasing the spider from below
+    if (this.serverMode && this.spider?.isAlive && !this.gameOver && !this._waterSurging) {
+      const mult = this._serverMultiplier || 1;
+
+      // Start just below the visible screen at round begin
+      if (this._waterSurfaceY === null) this._waterSurfaceY = height * 0.88;
+
+      // Rise rate: slow crawl early, relentlessly fast at high multipliers
+      // 1x → ~3px/s   10x → ~8px/s   50x → ~16px/s   100x → ~22px/s
+      const riseRate = 2 + Math.pow(Math.min(mult, 150), 0.65) * 0.9;
+
+      // Dynamic safety gap — never actually touches spider; gets very close at high mult
+      // 1x → 65px gap   47x+ → 18px gap
+      const safeGap = Math.max(18, 65 - Math.min(mult, 47));
+      const floorY  = height / 2 + safeGap;
+
+      this._waterSurfaceY = Math.max(floorY, this._waterSurfaceY - riseRate * delta / 1000);
+      this._drawPersistentWater(this._waterSurfaceY);
+    } else if (!this._waterSurging) {
+      this._waterBg?.clear();
+      this._waterFg?.clear();
     }
 
     // Magic tile bonus ramp: grow while worm is active, drain when it leaves

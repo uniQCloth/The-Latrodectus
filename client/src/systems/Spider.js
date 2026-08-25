@@ -24,6 +24,7 @@ export default class Spider {
     this.silkGfx = scene.add.graphics().setScrollFactor(0).setDepth(9);
     this.silkOriginY  = y;
     this.visualSlipY  = 0;  // screen-space offset applied during silk-slip animation
+    this._milestoneLevel = 0; // 0=normal, 1=100x gold, 2=500x inferno, 3=1000x void
     this.drawSpider();
 
     // Input
@@ -122,36 +123,68 @@ export default class Spider {
   }
 
   drawSilk() {
-    // Screen-space: compute screen position from world + camera scroll
     const camera = this.scene.cameras.main;
     const sx = this.sprite.x - camera.scrollX;
     const sy = this.sprite.y - camera.scrollY + this.visualSlipY;
     this.silkGfx.clear();
     if (!this.isAlive) return;
     const vx = this.sprite.body?.velocity?.x ?? 0;
-    const sway = vx * 0.04;
-    // Silk looks tighter / more visible when spider is slipping
     const slipping = this.visualSlipY > 5;
-    this.silkGfx.lineStyle(slipping ? 2.5 : 1.5, slipping ? 0xdddddd : 0xbbbbbb, slipping ? 0.65 : 0.4);
+    this.silkGfx.lineStyle(slipping ? 2.5 : 1.8, slipping ? 0xdddddd : 0xbbbbbb, slipping ? 0.65 : 0.5);
+
+    // Pendulum arc — silk bows opposite to the swing direction
+    const anchorX = sx;
+    const anchorY = -60;
+    const tipY    = sy - 14;
+    const ctrlX   = sx - vx * 0.12;                        // lags behind motion
+    const ctrlY   = anchorY + (tipY - anchorY) * 0.42;
+
+    // Quadratic bezier approximated with 10 segments
     this.silkGfx.beginPath();
-    this.silkGfx.moveTo(sx, -60); // anchor just above screen top
-    this.silkGfx.lineTo(sx + sway * 20, sy - 80);
-    this.silkGfx.lineTo(sx + sway * 8, sy - 14);
+    this.silkGfx.moveTo(anchorX, anchorY);
+    for (let i = 1; i <= 10; i++) {
+      const t  = i / 10;
+      const mt = 1 - t;
+      this.silkGfx.lineTo(
+        mt * mt * anchorX + 2 * mt * t * ctrlX + t * t * sx,
+        mt * mt * anchorY + 2 * mt * t * ctrlY + t * t * tipY
+      );
+    }
     this.silkGfx.strokePath();
   }
 
   drawSpider() {
-    // Screen-space: convert world position to screen coords
     const camera = this.scene.cameras.main;
-    const x = this.sprite.x - camera.scrollX;
-    const y = this.sprite.y - camera.scrollY + this.visualSlipY;
-    const t = this.scene.time.now;
+    const sx = this.sprite.x - camera.scrollX;
+    const sy = this.sprite.y - camera.scrollY + this.visualSlipY;
+    const t  = this.scene.time.now;
+
+    // Tilt body based on horizontal velocity — pendulum swing feel
+    const vx = this.sprite.body?.velocity?.x ?? 0;
+    this.gfx.setPosition(sx, sy);
+    this.gfx.setAngle(Phaser.Math.Clamp(vx * 0.055, -22, 22));
+
     this.gfx.clear();
+    // Draw relative to (0,0) — gfx is already positioned at spider center
+    const x = 0;
+    const y = 0;
 
     const stunned = this.externalStunned;
-    const eyeColor = stunned ? 0xffff00 : 0xff2200;
-    const bodyColor = stunned ? 0x1a1a00 : 0x0d0520;
-    const outlineColor = stunned ? 0xaaaa00 : 0x8800aa;
+    let eyeColor, bodyColor, outlineColor;
+    if (stunned) {
+      eyeColor = 0xffff00; bodyColor = 0x1a1a00; outlineColor = 0xaaaa00;
+    } else if (this._milestoneLevel >= 3) {
+      // 1000x — void spider: pure black body, magenta aura, cyan eyes
+      eyeColor = 0x00ffee; bodyColor = 0x000000; outlineColor = 0xff00cc;
+    } else if (this._milestoneLevel >= 2) {
+      // 500x — inferno spider: deep red, orange glow, white-hot eyes
+      eyeColor = 0xffffff; bodyColor = 0x1a0000; outlineColor = 0xff6600;
+    } else if (this._milestoneLevel >= 1) {
+      // 100x — gilded spider: same body, gold outline and eyes
+      eyeColor = 0xffcc00; bodyColor = 0x0d0520; outlineColor = 0xffaa00;
+    } else {
+      eyeColor = 0xff2200; bodyColor = 0x0d0520; outlineColor = 0x8800aa;
+    }
 
     // Glow under body
     const pulse = 0.3 + Math.sin(t * 0.003) * 0.15;
@@ -231,6 +264,10 @@ export default class Spider {
     // Spinnerets (web-spinning organs at back)
     this.gfx.fillStyle(bodyColor, 1);
     this.gfx.fillEllipse(x, y + 20, 12, 8);
+  }
+
+  setMilestoneLevel(level) {
+    this._milestoneLevel = level;
   }
 
   setStunned(isStunned) {

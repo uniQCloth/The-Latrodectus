@@ -10,23 +10,9 @@ export default class UsernameScene extends Phaser.Scene {
   }
 
   create() {
-    // Already authenticated — skip straight in only if token is valid + not expired
-    const token = localStorage.getItem('wsm_token');
-    if (token) {
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          if (payload.exp && payload.exp > Date.now() / 1000) {
-            this.scene.start('IntroScene');
-            return;
-          }
-        }
-      } catch {}
-      // Token invalid or expired — clear and show auth
-      localStorage.removeItem('wsm_token');
-      localStorage.removeItem('wsm_username');
-    }
+    // Always require login — clear any stored session so the form always shows
+    localStorage.removeItem('wsm_token');
+    localStorage.removeItem('wsm_username');
 
     const { width, height } = this.scale;
     this._buildBackground(width, height);
@@ -299,7 +285,7 @@ export default class UsernameScene extends Phaser.Scene {
 
       this.time.delayedCall(800, () => {
         const overlay = this.add.rectangle(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height, 0x000000, 0);
-        this.tweens.add({ targets: overlay, alpha: 1, duration: 400, onComplete: () => this.scene.start('IntroScene') });
+        this.tweens.add({ targets: overlay, alpha: 1, duration: 400, onComplete: () => this.scene.start('CinematicScene') });
       });
     } catch (err) {
       this._setLoading(false);
