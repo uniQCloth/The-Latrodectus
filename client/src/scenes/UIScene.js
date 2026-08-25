@@ -529,10 +529,6 @@ export default class UIScene extends Phaser.Scene {
       this.crashOverlay.setAlpha(0);
       this.cashoutOverlay.setAlpha(0);
       this.multText.setText('1.00×').setColor('#ffffff').setScale(1);
-      if (this._cashoutPanicTween) {
-        this._cashoutPanicTween.stop();
-        this._cashoutPanicTween = null;
-      }
       this.wormText.setText('🐛 0/3');
       this.enterBettingUI(duration);
       this.roundInfo.setText(`Round #${roundId}  Hash: ${publicHash.slice(0, 12)}…`);
@@ -736,28 +732,6 @@ export default class UIScene extends Phaser.Scene {
       duration: 120, ease: 'Power2',
     });
 
-    // Pulse the CASH OUT button with urgency at high multipliers
-    if (this.betPlaced && !this.cashedOut && this.state === 'playing') {
-      if (multiplier >= 30) {
-        if (!this._cashoutPanicTween) {
-          this._cashoutPanicTween = this.tweens.add({
-            targets: this.actionBtn,
-            scaleX: { from: 1, to: 1.06 },
-            scaleY: { from: 1, to: 1.06 },
-            duration: 200,
-            yoyo: true,
-            repeat: -1,
-          });
-          this.actionBtn.setStyle({ backgroundColor: '#ff4400', color: '#ffffff' });
-        }
-      } else {
-        if (this._cashoutPanicTween) {
-          this._cashoutPanicTween.stop();
-          this._cashoutPanicTween = null;
-          this.actionBtn.setScale(1).setStyle({ backgroundColor: '#cc1f00', color: '#ffffff' });
-        }
-      }
-    }
   }
 
   updatePayoutPreview() {

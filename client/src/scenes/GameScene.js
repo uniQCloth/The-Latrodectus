@@ -1483,12 +1483,12 @@ export default class GameScene extends Phaser.Scene {
   // ── Persistent water — drawn every frame during live rounds ─────────────
 
   _waterColorForMultiplier(mult) {
-    // Deep blue (safe) → teal (5×) → yellow-green (15×) → orange (30×) → red (50×+)
-    if (mult < 5)   return { bg: 0x000c22, fg: 0x0d3d99 };
-    if (mult < 15)  return { bg: 0x001a1a, fg: 0x0a6655 };
-    if (mult < 30)  return { bg: 0x1a1500, fg: 0x887700 };
-    if (mult < 50)  return { bg: 0x1a0800, fg: 0xaa4400 };
-    return               { bg: 0x1a0000, fg: 0xcc1100 };
+    // Thresholds scaled for a 5000× game — color drama is earned, not alarming
+    if (mult < 100)   return { bg: 0x000c22, fg: 0x0d3d99 }; // deep blue
+    if (mult < 500)   return { bg: 0x001a1a, fg: 0x0a6655 }; // teal
+    if (mult < 1500)  return { bg: 0x1a1500, fg: 0x887700 }; // amber
+    if (mult < 3000)  return { bg: 0x1a0800, fg: 0xaa4400 }; // orange
+    return                   { bg: 0x1a0000, fg: 0xcc1100 }; // red (3000×+)
   }
 
   _drawPersistentWater(surfaceY) {
