@@ -37,7 +37,8 @@ export default class GameScene extends Phaser.Scene {
     this._serverMultiplier     = 1;
     this._spiderMilestoneLevel = 0;
     this._waterSurfaceY        = null;  // screen-Y of water surface; null = off
-    this._waterSurging         = false; // true while crash surge animation runs
+    this._waterSurging         = false; // true only during post-crash drain animation
+    this._crashSurge           = false; // true while water is rushing up after a crash
 
     // ── Pipe geometry ─────────────────────────────────────────────────────
     this.drawWorldBackground();
@@ -1591,31 +1592,65 @@ export default class GameScene extends Phaser.Scene {
 
   // ── Server crash — wave rushes DOWN the pipe and hits the spider ─────────
 
+  _startCrashDrain() {
+    const { height } = this.scale;
+    this._waterSurging = true;  // block update loop from clearing water mid-drain
+    const floodGen = ++this._floodGen;
+
+    this.time.delayedCall(1400, () => {
+      if (this._floodGen !== floodGen) return;
+      const proxy = { y: this._waterSurfaceY ?? height * 0.5 };
+      this.tweens.add({
+        targets: proxy, y: height + 120, duration: 1100, ease: 'Power2',
+        onUpdate: () => {
+          if (this._floodGen !== floodGen) return;
+          this._waterSurfaceY = proxy.y;
+          this._drawPersistentWater(proxy.y);
+        },
+        onComplete: () => {
+          if (this._floodGen !== floodGen) return;
+          this._waterBg?.clear().setDepth(6);
+          this._waterFg?.clear().setDepth(7);
+          this._waterSurfaceY = null;
+          this._waterSurging  = false;
+        },
+      });
+    });
+  }
+
   triggerServerFlood() {
+    if (!this.spider?.isAlive) return;
     const { width, height } = this.scale;
     this._floodWarnActive = false;
-    const innerW = width - PIPE_WALL * 2;
+    this._floodGen++;           // invalidate any old surge callbacks
+    this._waterSurging = false; // let the update loop take over
+    this._crashSurge   = true;  // signal: water rushes up fast
 
     sound.playJumpScareCrash();
 
-    // Instant white flash
-    const flash = this.add.graphics().setScrollFactor(0).setDepth(28);
-    flash.fillStyle(0xffffff, 1); flash.fillRect(0, 0, width, height);
-    this.tweens.add({ targets: flash, alpha: 0, duration: 110, ease: 'Power3',
-      onComplete: () => flash.destroy() });
+    // Camera shake — unmistakably a game event, not a glitch
+    this.cameras.main.shake(550, 0.016);
 
-    // Shockwave ring on pipe walls
-    const shockwave = this.add.graphics().setScrollFactor(0).setDepth(18);
-    shockwave.lineStyle(5, 0x66aaff, 0.9);
-    shockwave.strokeRect(PIPE_WALL - 3, 2, innerW + 6, height - 4);
-    this.tweens.add({ targets: shockwave, alpha: 0, scaleY: 1.03, duration: 280, ease: 'Power2',
-      onComplete: () => shockwave.destroy() });
+    // Red pulse on the pipe interior
+    const redFlash = this.add.graphics().setScrollFactor(0).setDepth(22);
+    redFlash.fillStyle(0xff2200, 0.30);
+    redFlash.fillRect(PIPE_WALL, 0, width - PIPE_WALL * 2, height);
+    this.tweens.add({ targets: redFlash, alpha: 0, duration: 600, ease: 'Power2',
+      onComplete: () => redFlash.destroy() });
 
-    const floodGen = ++this._floodGen;
-    // Let the flash + shockwave settle, then surge water from below
-    this.time.delayedCall(90, () => {
-      if (this._floodGen !== floodGen) return;
-      this._surgeWaterCrash(floodGen);
+    // "PIPE BURST!" banner — players instantly know it's the game, not a glitch
+    const banner = this.add.text(width / 2, height * 0.42, '⚠  PIPE BURST!  ⚠', {
+      fontSize: '30px', fontFamily: 'Arial Black, sans-serif',
+      color: '#ff4400', stroke: '#000000', strokeThickness: 5,
+      shadow: { offsetX: 0, offsetY: 0, color: '#ff0000', blur: 18, fill: true },
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(29).setAlpha(0);
+
+    this.tweens.add({
+      targets: banner, alpha: 1, y: height * 0.40, duration: 120,
+      onComplete: () => {
+        this.tweens.add({ targets: banner, alpha: 0, duration: 350, delay: 750,
+          onComplete: () => banner.destroy() });
+      },
     });
   }
 
@@ -1729,6 +1764,7 @@ export default class GameScene extends Phaser.Scene {
     this._waterFg?.setDepth(7);
     this._waterSurfaceY = null;
     this._waterSurging  = false;
+    this._crashSurge    = false;
 
     // Flash white inside pipe if crash flood was mid-animation (pipe was full of blue)
     if (wasFloodSurging) this._flashPipeWhite();
@@ -1875,24 +1911,38 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    // Persistent water — always rising, always chasing the spider from below
+    // Persistent water — always rising; surges on crash
     if (this.serverMode && this.spider?.isAlive && !this.gameOver && !this._waterSurging) {
       const mult = this._serverMultiplier || 1;
 
-      // Start just below the visible screen at round begin
       if (this._waterSurfaceY === null) this._waterSurfaceY = height * 0.88;
 
-      // Rise rate: slow crawl early, relentlessly fast at high multipliers
-      // 1x → ~3px/s   10x → ~8px/s   50x → ~16px/s   100x → ~22px/s
-      const riseRate = 2 + Math.pow(Math.min(mult, 150), 0.65) * 0.9;
-
-      // Dynamic safety gap — never actually touches spider; gets very close at high mult
-      // 1x → 65px gap   47x+ → 18px gap
-      const safeGap = Math.max(18, 65 - Math.min(mult, 47));
-      const floorY  = height / 2 + safeGap;
+      let riseRate, floorY;
+      if (this._crashSurge) {
+        // Pipe burst: water rushes up at full speed — no safety gap
+        riseRate = 600;
+        floorY   = -200;
+      } else {
+        // Normal: slow crawl that tightens with multiplier
+        // 1x → ~3px/s   10x → ~8px/s   50x → ~16px/s   100x → ~22px/s
+        riseRate = 2 + Math.pow(Math.min(mult, 150), 0.65) * 0.9;
+        // Safety gap keeps water just below spider until crash event
+        const safeGap = Math.max(18, 65 - Math.min(mult, 47));
+        floorY = height / 2 + safeGap;
+      }
 
       this._waterSurfaceY = Math.max(floorY, this._waterSurfaceY - riseRate * delta / 1000);
       this._drawPersistentWater(this._waterSurfaceY);
+
+      // Crash surge: kill spider the moment water reaches it
+      if (this._crashSurge && this.spider?.isAlive) {
+        const spiderScreenY = this.spider.sprite.y - this.cameras.main.scrollY;
+        if (this._waterSurfaceY <= spiderScreenY + 24) {
+          this._crashSurge = false;
+          this.spider.die('flood');
+          this._startCrashDrain();
+        }
+      }
     } else if (!this._waterSurging) {
       this._waterBg?.clear();
       this._waterFg?.clear();
