@@ -25,8 +25,8 @@ class ProvablyFair {
     const decimal = parseInt(hmac.slice(0, 8), 16);
     const MAX = 0xffffffff;
 
-    // 1% house edge: ~1 in 101 rounds bust at exactly 1.00x
-    if (decimal % 101 === 0) return 1.00;
+    // House edge: ~1 in 33 rounds bust at exactly 1.00x (~3%)
+    if (decimal % 33 === 0) return 1.00;
 
     // Exponential crash distribution: most rounds 1-3x, rare 1000x+
     const u = decimal / (MAX + 1); // uniform [0, 1)

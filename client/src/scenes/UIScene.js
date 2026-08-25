@@ -581,6 +581,8 @@ export default class UIScene extends Phaser.Scene {
       if (this._localHistory.length > 8) this._localHistory.pop();
       this.updateHistoryBar(this._localHistory);
       // Sound handled by triggerServerFlood() via playJumpScareCrash()
+
+      if (crashPoint <= 1.00) this._showInstantBust();
     });
 
     socket.on('cashout:confirmed', ({ multiplier, payout, balance }) => {
@@ -758,8 +760,11 @@ export default class UIScene extends Phaser.Scene {
       const slot = this.historySlots[i];
       if (!slot) return;
       const cp = round.crashPoint;
-      const color = cp < 2 ? '#ff4444' : cp < 5 ? '#ff9900' : '#00ff88';
-      slot.setText(`${cp.toFixed(2)}×`).setStyle({ color, backgroundColor: '#1a1a1a' });
+      const instant = cp <= 1.00;
+      const color = instant ? '#ff0000' : cp < 2 ? '#ff4444' : cp < 5 ? '#ff9900' : '#00ff88';
+      const bg = instant ? '#330000' : '#1a1a1a';
+      const label = instant ? '💀1.00×' : `${cp.toFixed(2)}×`;
+      slot.setText(label).setStyle({ color, backgroundColor: bg });
     });
   }
 
@@ -889,6 +894,46 @@ export default class UIScene extends Phaser.Scene {
         row.setText('');
       }
     }
+  }
+
+  // ─── Instant bust (1.00×) visual ─────────────────────────────────────────
+
+  _showInstantBust() {
+    const { width, height } = this.scale;
+
+    // Full-screen red flash
+    const flash = this.add.rectangle(width / 2, height / 2, width, height, 0xff0000, 0)
+      .setScrollFactor(0).setDepth(50);
+    this.tweens.add({
+      targets: flash,
+      alpha: { from: 0.55, to: 0 },
+      duration: 500,
+      onComplete: () => flash.destroy(),
+    });
+
+    // "INSTANT BUST" stamp
+    const stamp = this.add.text(width / 2, height / 2 - 20, 'INSTANT\nBUST!', {
+      fontSize: '52px',
+      fontFamily: 'Arial Black, sans-serif',
+      color: '#ff2200',
+      stroke: '#000000',
+      strokeThickness: 8,
+      align: 'center',
+      shadow: { offsetX: 0, offsetY: 0, color: '#ff0000', blur: 24, fill: true },
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(51).setAlpha(0);
+
+    this.tweens.add({
+      targets: stamp,
+      alpha: { from: 0, to: 1 },
+      scaleX: { from: 1.5, to: 1 },
+      scaleY: { from: 1.5, to: 1 },
+      duration: 180,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({ targets: stamp, alpha: 0, duration: 400, delay: 900,
+          onComplete: () => stamp.destroy() });
+      },
+    });
   }
 
   // ─── How to Play overlay ──────────────────────────────────────────────────
