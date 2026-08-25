@@ -1,206 +1,212 @@
-# Widow Spider Multiplier
+# 🕷️ Widow Spider Multiplier
 
-An Aviator-style multiplayer crash gambling game. A black widow spider climbs a drain pipe while a live multiplier grows. Cash out before the flood hits — or lose everything.
-
-Built with **Phaser 3**, **Socket.io**, **Node.js**, and **PostgreSQL**. No audio files — all sounds are procedurally generated via the WebAudio API.
-
----
-
-## Features
-
-- Real-time multiplayer via Socket.io
-- Provably fair crash point using server-side seed hashing
-- Spider character with animated legs, silk thread, and hula hoop mechanic
-- Industrial drain pipe environment with ambient objects (flies, gum, hair, quarters, toothbrush tips, teeth)
-- Bathroom drain iris-wipe reveal events
-- Flash flood fake-out warnings + surprise jump-scare crash
-- Procedural WebAudio sounds (no audio files required)
-- USDT-TRC20 payment integration (Tron network)
-- PostgreSQL wallet/round persistence
-- Nginx + PM2 production deploy config
+> **© 2026 uniQCloth — All Rights Reserved. Proprietary Software.**
+> See [LICENSE](./LICENSE) for permitted uses. This code may not be copied, forked, or distributed.
 
 ---
 
-## Project Structure
+**Widow Spider Multiplier** is an original multiplayer crash-style game where a black widow spider climbs a sewage drain pipe while a live multiplier grows. Cash out before the pipe bursts — or lose your bet to the flood.
+
+Built from scratch with **Phaser 3**, **Socket.io**, **Node.js**, and **PostgreSQL**. Every sound is procedurally generated with the WebAudio API — no audio files.
+
+---
+
+## 🎮 Play & Test
+
+> **Beta is open. We want your feedback.**
+
+The game is in active development and we are looking for players to:
+- Find bugs and report them (see [How to Submit Feedback](#-how-to-submit-feedback))
+- Suggest features, game feel improvements, or ideas
+- Report anything that feels unfair, confusing, or broken
+- Try it on different devices and screen sizes
+
+**To play:** use the link provided by the developer. Create an account, place a bet, and cash out before the flood hits.
+
+---
+
+## 🐛 How to Submit Feedback
+
+Open a **[GitHub Issue](https://github.com/uniQCloth/widow-spider-multiplier/issues/new/choose)** and pick a template:
+
+| Template | Use for |
+|---|---|
+| 🐛 Bug Report | Something is broken or behaving wrong |
+| 💡 Feature Idea | Something you want added |
+| 🎮 Game Feel | Physics, timing, difficulty, visuals |
+| 💬 General Feedback | Anything else |
+
+**What makes a good report:**
+- What you were doing when it happened
+- What device / browser you were using
+- A screenshot or screen recording if possible
+- How bad it was (minor annoyance vs. game-breaking)
+
+All feedback is read personally by the developer. Good ideas get credited.
+
+---
+
+## ✨ Features
+
+| Feature | Detail |
+|---|---|
+| **Cinematic intro** | Original spider-descends-on-silk animation plays before the main menu |
+| **Procedural spider** | Animated legs, silk thread, pendulum body swing, milestone color forms |
+| **Live multiplier** | Grows every tick — provably fair crash point using server seed hashing |
+| **Rising water** | Water climbs the pipe all round, tightening with the multiplier |
+| **Pipe burst crash** | Camera shake + "PIPE BURST!" banner + water surge — clearly a game event |
+| **Platform types** | Normal, slippery, bounce, fire, shock, disappearing, exploding |
+| **Hazards** | Shock pads, fire tiles, crawlers — all affect the spider differently |
+| **Magic glow worm** | Rare bonus collectible that multiplies your cashout |
+| **Milestone skins** | Spider changes color/aura at 100x (gold), 500x (inferno), 1000x (void) |
+| **Theme music** | Original "Climbing Spider" digital beat — ascending/descending A minor loop |
+| **Pipe ambience** | Hollow drip, drone rumble, and water rush — all synthesized |
+| **Chat** | Live in-game chat during rounds |
+| **Leaderboard** | Real-time top scores |
+| **USDT payments** | Tron TRC-20 wallet — deposit, play, withdraw |
+| **Multiplayer** | All players in the same round via Socket.io |
+
+---
+
+## 💼 Investors & Partnership
+
+Widow Spider Multiplier is seeking:
+
+- **Investment** to scale infrastructure, marketing, and game development
+- **Casino / iGaming platform partners** to license and integrate the game
+- **White-label operators** who want a unique crash game for their player base
+
+The game is fully functional with real-money wallet integration (USDT/TRC-20), provably fair round generation, and a complete backend. It is ready for real-money deployment pending licensing and regulatory review.
+
+**If you are interested in partnering, investing, or licensing:**
+
+📧 **seven0seven90@gmail.com**
+🐙 **github.com/uniQCloth**
+
+Include: who you are, your platform/fund, and what you are looking for.
+
+---
+
+## 🏗️ Project Structure
 
 ```
 widow-spider-multiplier/
-├── client/                  # Phaser 3 frontend
-│   ├── src/
-│   │   ├── main.js          # Phaser game bootstrap
-│   │   ├── scenes/
-│   │   │   ├── IntroScene.js
-│   │   │   ├── GameScene.js  # Main game world
-│   │   │   └── UIScene.js    # HUD overlay (betting, multiplier, chat)
-│   │   ├── systems/
-│   │   │   ├── Spider.js
-│   │   │   ├── HulaHoop.js
-│   │   │   ├── Platform.js
-│   │   │   ├── Hazards.js
-│   │   │   ├── SoundManager.js
-│   │   │   ├── SocketManager.js
-│   │   │   ├── Multiplier.js
-│   │   │   ├── MultiplierEngine.client.js
-│   │   │   ├── FloodScheduler.js
-│   │   │   └── GlowWorm.js
-│   │   └── ui/
-│   │       ├── ChatPanel.js
-│   │       └── WalletPanel.js
-│   ├── index.html
-│   ├── verify.html
-│   ├── webpack.config.js
-│   └── package.json
-├── server/                  # Node.js + Socket.io backend
-│   ├── index.js             # Express + Socket.io entry point
+├── client/                    # Phaser 3 frontend (Webpack 5)
+│   └── src/
+│       ├── main.js            # Game bootstrap + scene registry
+│       ├── scenes/
+│       │   ├── CinematicScene.js  # Intro animation
+│       │   ├── UsernameScene.js   # Auth (login / register)
+│       │   ├── IntroScene.js      # Main menu
+│       │   ├── GameScene.js       # Game world + physics
+│       │   └── UIScene.js         # HUD overlay
+│       └── systems/
+│           ├── Spider.js          # Player character + physics
+│           ├── SoundManager.js    # All audio (WebAudio, no files)
+│           ├── SocketManager.js   # Socket.io client singleton
+│           ├── Platform.js        # Platform types + behavior
+│           ├── HazardManager.js   # Hazard spawning + effects
+│           └── FloodScheduler.js  # Offline flood timing
+├── server/                    # Node.js + Socket.io backend
 │   ├── game/
-│   │   ├── RoundManager.js  # Round state machine (betting → playing → result)
+│   │   ├── RoundManager.js    # Round state machine
 │   │   ├── MultiplierEngine.js
 │   │   └── ProvablyFair.js
 │   ├── db/
 │   │   ├── db.js
-│   │   ├── queries.js
-│   │   └── schema.sql       # PostgreSQL schema
-│   ├── payments/
-│   │   ├── TronService.js
-│   │   ├── DepositVerifier.js
-│   │   └── WithdrawalProcessor.js
-│   ├── .env.example
-│   └── package.json
+│   │   └── schema.sql
+│   └── payments/
+│       └── TronService.js     # USDT TRC-20 wallet
 └── deploy/
-    ├── ecosystem.config.js  # PM2 config
-    ├── nginx.conf           # Nginx reverse proxy + SSL
-    └── setup.sh             # Server bootstrap script
+    ├── ecosystem.config.js    # PM2 process config
+    ├── nginx.conf             # Reverse proxy + SSL
+    └── setup.sh               # VPS bootstrap
 ```
 
 ---
 
-## Quick Start (Local Dev)
+## 🚀 Run Locally (Dev)
 
-### Prerequisites
+### Requirements
 - Node.js 18+
-- PostgreSQL 14+ (optional — runs without DB in memory mode)
-
-### 1. Install dependencies
-
-```bash
-cd client && npm install
-cd ../server && npm install
-```
-
-### 2. Configure the server
-
-```bash
-cd server
-cp .env.example .env
-# Edit .env — set DATABASE_URL if using PostgreSQL
-# Leave TRON_PRIVATE_KEY blank to run in mock payment mode
-```
-
-### 3. Run the database schema (if using PostgreSQL)
-
-```bash
-psql -U postgres -c "CREATE DATABASE widow_spider;"
-psql -U postgres -d widow_spider -f server/db/schema.sql
-```
-
-### 4. Start the server
-
-```bash
-cd server && npm run dev
-# Runs on http://localhost:3001
-```
-
-### 5. Start the client dev server
-
-```bash
-cd client && npm start
-# Opens http://localhost:8181
-```
-
----
-
-## Production Deploy
-
-### Prerequisites
-- Ubuntu 20.04+ VPS
-- Nginx
-- PM2 (`npm install -g pm2`)
-- Certbot for SSL
+- PostgreSQL 14+ (optional — falls back to in-memory mode without it)
 
 ### Steps
 
 ```bash
-# Clone repo
-git clone https://github.com/YOUR_USERNAME/widow-spider-multiplier.git /var/www/widow-spider
-cd /var/www/widow-spider
+# 1. Clone
+git clone https://github.com/uniQCloth/widow-spider-multiplier.git
+cd widow-spider-multiplier
 
-# Install and build client
-cd client && npm install && npm run build
-cd ..
+# 2. Install
+cd client && npm install
+cd ../server && npm install
 
-# Install server deps
-cd server && npm install
+# 3. Configure server (copy example, edit if needed)
+cd server && cp .env.example .env
 
-# Configure environment
-cp server/.env.example server/.env
-nano server/.env   # fill in DATABASE_URL, TRON_PRIVATE_KEY, etc.
+# 4. Start server
+npm run dev          # runs on :3001
 
-# Start with PM2
+# 5. Start client (new terminal)
+cd client && npm start   # runs on :8181
+```
+
+Open `http://localhost:8181` — register an account and play.
+
+---
+
+## 🌐 Production Deploy (VPS)
+
+```bash
+# Build client
+cd client && npm run build
+
+# PM2
 pm2 start deploy/ecosystem.config.js --env production
 pm2 save && pm2 startup
 
-# Configure Nginx
+# Nginx + SSL
 sudo cp deploy/nginx.conf /etc/nginx/sites-available/widow-spider
-# Edit YOUR_DOMAIN_HERE in the nginx config
-sudo ln -s /etc/nginx/sites-available/widow-spider /etc/nginx/sites-enabled/
 sudo certbot --nginx -d yourdomain.com
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ---
 
-## Environment Variables
+## ⚙️ Environment Variables
 
 | Variable | Required | Description |
 |---|---|---|
-| `PORT` | No | Server port (default: 3001) |
-| `DATABASE_URL` | No | PostgreSQL connection string. Omit to run without persistence. |
-| `ALLOWED_ORIGINS` | No | Comma-separated CORS origins for production |
-| `TRON_PRIVATE_KEY` | No | House wallet private key (64-char hex). Omit for mock mode. |
-| `TRON_HOUSE_ADDRESS` | No | House wallet TRX address |
-| `TRON_NETWORK` | No | `mainnet` or `testnet` (default: testnet) |
-| `TRONGRID_API_KEY` | No | TronGrid API key for higher rate limits |
+| `PORT` | No | Server port (default 3001) |
+| `DATABASE_URL` | No | PostgreSQL URL — omit for memory mode |
+| `ALLOWED_ORIGINS` | No | CORS origins for production |
+| `TRON_PRIVATE_KEY` | No | House wallet key — omit for mock payments |
+| `TRON_HOUSE_ADDRESS` | No | House TRX wallet address |
+| `TRON_NETWORK` | No | `mainnet` or `testnet` |
 
 ---
 
-## Game Mechanics
+## 📋 Recent Changelog
 
-| Mechanic | Detail |
-|---|---|
-| **Betting phase** | 10 seconds — place your bet before the round starts |
-| **Playing phase** | Multiplier climbs until server-determined crash point |
-| **Crash point** | Provably fair — hash of server seed + round ID |
-| **Cashout** | Click "CASH OUT" anytime during playing phase |
-| **Flood warnings** | Fake-out tension events — actual crash is always a surprise |
-| **Hula hoop** | Collectible that boosts jump height |
+See [CHANGELOG.md](./CHANGELOG.md) for full history.
 
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Game engine | Phaser 3 |
-| Real-time | Socket.io 4 |
-| Backend | Node.js + Express |
-| Database | PostgreSQL |
-| Payments | Tron TRC-20 (USDT) via TronWeb |
-| Bundler | Webpack 5 |
-| Process mgr | PM2 |
-| Web server | Nginx |
+**Latest updates:**
+- Cinematic intro: spider descends on silk, water rises, PIPE BURST sequence
+- Replaced jarring blue-screen crash with rising-water surge + shake + banner
+- Spider pendulum swing mechanic (purely visual, left/right movement)
+- Grey pipe interior, brightened walls
+- Original "Climbing Spider" theme music (digital A-minor beat)
+- Hollow pipe drip ambience (procedural WebAudio)
+- Persistent rising water that tracks multiplier speed
+- Always-require-login (no auto session skip)
 
 ---
 
-## License
+## ⚖️ Legal
 
-MIT
+**© 2026 uniQCloth. All Rights Reserved.**
+
+This is proprietary software. Viewing this repository is permitted for the purpose of beta testing and providing feedback only. Copying, forking, distributing, or using any portion of this code in another project is strictly prohibited without written permission from the author.
+
+See [LICENSE](./LICENSE) for full terms.
