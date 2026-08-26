@@ -1,6 +1,5 @@
 import socket from '../systems/SocketManager';
-
-const SERVER_URL = 'http://localhost:3001';
+import { SERVER_URL } from '../config';
 
 export default class UsernameScene extends Phaser.Scene {
   constructor() {

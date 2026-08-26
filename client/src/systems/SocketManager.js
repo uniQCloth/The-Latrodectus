@@ -1,6 +1,5 @@
 import { io } from 'socket.io-client';
-
-const SERVER_URL = 'http://localhost:3001';
+import { SERVER_URL } from '../config';
 
 class SocketManager {
   constructor() {
