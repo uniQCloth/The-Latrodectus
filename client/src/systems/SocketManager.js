@@ -18,7 +18,9 @@ class SocketManager {
       query,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 10,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,
     });
 
     this.socket.on('connect', () => {

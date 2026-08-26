@@ -61,10 +61,10 @@ export default class UIScene extends Phaser.Scene {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
     // Connection dot
-    this.connDot = this.add.circle(width - 10, height - 112, 5, 0xff0000)
+    this.connDot = this.add.circle(width - 10, height - 112, 5, 0xffaa00)
       .setScrollFactor(0).setDepth(11);
-    this.connLabel = this.add.text(width - 18, height - 119, 'OFFLINE', {
-      fontSize: '9px', color: '#ff4444',
+    this.connLabel = this.add.text(width - 18, height - 119, 'CONNECTING', {
+      fontSize: '9px', color: '#ffaa00',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
     // ── Balance — depth 13 so it always renders above boxes below it ────────
