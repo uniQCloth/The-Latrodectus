@@ -516,6 +516,83 @@ export default class SoundManager {
     }
   }
 
+  playHitSplash() {
+    // Brief water impact — droplet hits spider
+    this._noise(0.07, 0.16);
+    this._tone(320, 'sine', 0.06, 0.10);
+    this._tone(180, 'sine', 0.08, 0.08, 0.03);
+  }
+
+  startPipeGroan(mult) {
+    if (!this._ctx || this._muted) return;
+    if (this._groanRunning) {
+      // Update intensity without re-initialising
+      if (this._groanGain) {
+        const vol = Math.min(0.14, 0.04 + (mult - 20) * 0.0028);
+        this._groanGain.gain.linearRampToValueAtTime(vol, this._ctx.currentTime + 0.8);
+      }
+      return;
+    }
+    this._groanRunning = true;
+    this._resume();
+    const ctx = this._ctx;
+
+    this._groanGain = ctx.createGain();
+    const vol = Math.min(0.14, 0.04 + (mult - 20) * 0.0028);
+    this._groanGain.gain.value = 0;
+    this._groanGain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 2.5);
+    this._groanGain.connect(this._masterGain);
+
+    // Low pipe resonance oscillator
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 46;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 160;
+    osc.connect(lp);
+    lp.connect(this._groanGain);
+    osc.start();
+    this._groanOsc = osc;
+
+    // Slow tremolo LFO
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.28;
+    lfoGain.gain.value = 0.018;
+    lfo.connect(lfoGain);
+    lfoGain.connect(this._groanGain.gain);
+    lfo.start();
+    this._groanLfo = lfo;
+
+    // Periodic creak bursts
+    const creak = () => {
+      if (!this._groanRunning) return;
+      this._noise(0.10, 0.05 + Math.random() * 0.05);
+      this._tone(50 + Math.random() * 40, 'sine', 0.16, 0.07);
+      this._groanCreakTO = setTimeout(creak, 1800 + Math.random() * 3200);
+    };
+    creak();
+  }
+
+  stopPipeGroan(fadeSecs = 1.2) {
+    if (!this._groanRunning) return;
+    this._groanRunning = false;
+    clearTimeout(this._groanCreakTO);
+    if (this._groanGain && this._ctx) {
+      const now = this._ctx.currentTime;
+      this._groanGain.gain.setValueAtTime(this._groanGain.gain.value, now);
+      this._groanGain.gain.linearRampToValueAtTime(0, now + fadeSecs);
+      setTimeout(() => {
+        try { this._groanOsc?.stop(); } catch (_) {}
+        try { this._groanLfo?.stop(); } catch (_) {}
+        this._groanOsc = null;
+        this._groanLfo = null;
+        this._groanGain = null;
+      }, (fadeSecs + 0.15) * 1000);
+    }
+  }
+
   toggleMute() {
     this._muted = !this._muted;
     if (this._masterGain) {

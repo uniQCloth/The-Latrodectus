@@ -1,3 +1,5 @@
+import { startIdleWatch, stopIdleWatch } from '../systems/IdleManager';
+
 export default class IntroScene extends Phaser.Scene {
   constructor() {
     super({ key: 'IntroScene' });
@@ -155,20 +157,23 @@ export default class IntroScene extends Phaser.Scene {
 
     playBtn.on('pointerover', () => playBtn.setStyle({ backgroundColor: '#00cc66' }));
     playBtn.on('pointerout', () => playBtn.setStyle({ backgroundColor: '#00ff88' }));
-    playBtn.on('pointerdown', () => this.startCountdown());
+    playBtn.on('pointerdown', () => this.scene.start('TutorialScene'));
 
-    // Skip button (top right, smaller)
-    const skipBtn = this.add.text(width - 16, 16, 'SKIP ›', {
-      fontSize: '14px',
-      color: '#555555',
+    // "? HOW TO PLAY" link (top right)
+    const helpBtn = this.add.text(width - 14, 14, '? HOW TO PLAY', {
+      fontSize: '12px',
+      color: '#444444',
     }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
 
-    skipBtn.on('pointerover', () => skipBtn.setColor('#aaaaaa'));
-    skipBtn.on('pointerout', () => skipBtn.setColor('#555555'));
-    skipBtn.on('pointerdown', () => this.startCountdown());
+    helpBtn.on('pointerover', () => helpBtn.setColor('#888888'));
+    helpBtn.on('pointerout', () => helpBtn.setColor('#444444'));
+    helpBtn.on('pointerdown', () => this.scene.start('TutorialScene'));
 
-    // Auto-advance after 5 seconds
-    this.time.delayedCall(5000, () => this.startCountdown(), [], this);
+    startIdleWatch(this.game);
+  }
+
+  shutdown() {
+    stopIdleWatch();
   }
 
   drawWebStrands(width, height) {

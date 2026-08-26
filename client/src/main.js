@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import UsernameScene from './scenes/UsernameScene';
 import CinematicScene from './scenes/CinematicScene';
 import IntroScene from './scenes/IntroScene';
+import TutorialScene from './scenes/TutorialScene';
 import GameScene from './scenes/GameScene';
 import UIScene from './scenes/UIScene';
 
@@ -22,7 +23,7 @@ const config = {
       debug: false,
     },
   },
-  scene: [UsernameScene, CinematicScene, IntroScene, GameScene, UIScene],
+  scene: [UsernameScene, CinematicScene, IntroScene, TutorialScene, GameScene, UIScene],
 };
 
 new Phaser.Game(config);
