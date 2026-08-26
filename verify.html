@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Provably Fair Verification — Widow Spider Multiplier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0a;
+      color: #cccccc;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: #ff2200;
+      text-shadow: 0 0 20px rgba(255, 34, 0, 0.4);
+      margin-bottom: 4px;
+    }
+    h1 span { color: #ffffff; }
+
+    .tagline {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 36px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .card {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 28px;
+      width: 100%;
+      max-width: 540px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 15px;
+      color: #00ff88;
+      margin-bottom: 18px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    label {
+      display: block;
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+      margin-top: 14px;
+    }
+
+    input {
+      width: 100%;
+      background: #0d0d0d;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #eee;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      padding: 9px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #00ff88; }
+
+    button {
+      margin-top: 22px;
+      width: 100%;
+      padding: 13px;
+      background: #00ff88;
+      color: #000;
+      font-weight: 900;
+      font-size: 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background 0.15s;
+    }
+    button:hover { background: #00cc66; }
+    button:active { background: #009944; }
+
+    .result {
+      display: none;
+      margin-top: 20px;
+      padding: 18px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .result.ok { background: #001a0d; border: 1px solid #00ff88; color: #00ff88; }
+    .result.fail { background: #1a0000; border: 1px solid #ff2200; color: #ff4444; }
+
+    .result .label { color: #888; font-size: 11px; display: block; margin-top: 8px; }
+
+    .how-it-works li {
+      margin: 8px 0 8px 20px;
+      font-size: 13px;
+      color: #888;
+      line-height: 1.6;
+    }
+    .how-it-works code {
+      background: #1a1a1a;
+      padding: 1px 6px;
+      border-radius: 3px;
+      color: #00ff88;
+      font-size: 12px;
+    }
+
+    footer {
+      margin-top: 40px;
+      font-size: 11px;
+      color: #333;
+      text-align: center;
+    }
+    a { color: #555; text-decoration: none; }
+    a:hover { color: #00ff88; }
+  </style>
+</head>
+<body>
+
+<h1>🕷 <span>Widow Spider</span> Multiplier</h1>
+<p class="tagline">Provably Fair Round Verification</p>
+
+<div class="card">
+  <h2>Verify a Round</h2>
+
+  <label>Round ID</label>
+  <input id="roundId" type="number" placeholder="e.g. 42" />
+
+  <label>Secret Seed (revealed after crash)</label>
+  <input id="secretSeed" type="text" placeholder="64-character hex string" />
+
+  <label>Public Hash (shown before round starts)</label>
+  <input id="publicHash" type="text" placeholder="64-character hex string" />
+
+  <button onclick="verify()">VERIFY ROUND</button>
+
+  <div id="result" class="result"></div>
+</div>
+
+<div class="card how-it-works">
+  <h2>How It Works</h2>
+  <ol>
+    <li>
+      Before every round, the server generates a random <strong>secret seed</strong>
+      and publishes its <code>SHA-256(secretSeed + roundId)</code> as the
+      <strong>public hash</strong> — this is shown in the round info bar.
+    </li>
+    <li>
+      The crash point is derived from <code>HMAC-SHA256(secretSeed, roundId)</code>.
+      The first 8 hex bytes are converted to a decimal, then the formula
+      <code>0.99 / (1 − u)</code> is applied (where <code>u = decimal / 2^32</code>).
+      If the result is divisible by 101, the house wins at 1.00×.
+    </li>
+    <li>
+      After the round crashes, the secret seed is revealed. You can paste it here
+      along with the public hash to confirm the crash point was predetermined and
+      not changed after bets were placed.
+    </li>
+  </ol>
+</div>
+
+<footer>
+  &copy; 2025 Widow Spider Multiplier &mdash;
+  <a href="/">Back to Game</a>
+</footer>
+
+<script>
+  async function sha256hex(message) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  async function hmacSha256hex(keyStr, message) {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(keyStr);
+    const messageData = encoder.encode(String(message));
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const sig = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+    return Array.from(new Uint8Array(sig))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  function calcCrashPoint(hmacHex) {
+    const decimal = parseInt(hmacHex.slice(0, 8), 16);
+    if (decimal % 101 === 0) return 1.00; // house edge — 1% instant crash
+    const u = decimal / Math.pow(2, 32);
+    return Math.max(1.00, parseFloat((0.99 / (1 - u)).toFixed(2)));
+  }
+
+  async function verify() {
+    const roundId = document.getElementById('roundId').value.trim();
+    const secretSeed = document.getElementById('secretSeed').value.trim();
+    const publicHash = document.getElementById('publicHash').value.trim();
+    const resultEl = document.getElementById('result');
+
+    resultEl.style.display = 'none';
+
+    if (!roundId || !secretSeed || !publicHash) {
+      resultEl.className = 'result fail';
+      resultEl.innerHTML = '✗ Please fill in all three fields.';
+      resultEl.style.display = 'block';
+      return;
+    }
+
+    // 1. Verify the hash commitment
+    const expectedHash = await sha256hex(secretSeed + roundId);
+    const hashOk = expectedHash.toLowerCase() === publicHash.toLowerCase();
+
+    // 2. Derive crash point
+    const hmacHex = await hmacSha256hex(secretSeed, roundId);
+    const crashPoint = calcCrashPoint(hmacHex);
+
+    if (hashOk) {
+      resultEl.className = 'result ok';
+      resultEl.innerHTML = `
+        ✓ <strong>VERIFIED — Round was provably fair</strong>
+
+        <span class="label">Round ID</span>${roundId}
+        <span class="label">Secret Seed</span>${secretSeed}
+        <span class="label">SHA-256 Hash (should match public hash)</span>${expectedHash}
+        <span class="label">HMAC (first 8 bytes used for crash point)</span>${hmacHex.slice(0, 8)}…
+        <span class="label">Derived Crash Point</span><strong>${crashPoint.toFixed(2)}×</strong>
+      `;
+    } else {
+      resultEl.className = 'result fail';
+      resultEl.innerHTML = `
+        ✗ <strong>HASH MISMATCH — The seed does not match the public hash</strong>
+
+        <span class="label">Expected hash from seed</span>${expectedHash}
+        <span class="label">Provided public hash</span>${publicHash}
+        <span class="label">Note</span>This means either the seed was tampered with, or you entered a wrong value.
+      `;
+    }
+
+    resultEl.style.display = 'block';
+  }
+
+  // Allow Enter key in inputs
+  document.querySelectorAll('input').forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') verify(); });
+  });
+</script>
+</body>
+</html>
