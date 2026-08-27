@@ -87,6 +87,19 @@ export default class Spider {
       this.sprite.setVelocityX(speed);
     }
 
+    // Clamp spider inside pipe walls — half-body (18px) + wall thickness (68px)
+    const PIPE_WALL = 68;
+    const halfW = 18;
+    const minX = PIPE_WALL + halfW;
+    const maxX = this.scene.scale.width - PIPE_WALL - halfW;
+    if (this.sprite.x < minX) {
+      this.sprite.x = minX;
+      this.sprite.setVelocityX(0);
+    } else if (this.sprite.x > maxX) {
+      this.sprite.x = maxX;
+      this.sprite.setVelocityX(0);
+    }
+
     // Slippery platform reduces drag
     if (this.currentPlatform?.platformType === PLATFORM_TYPES.SLIPPERY) {
       this.sprite.setDragX(80);

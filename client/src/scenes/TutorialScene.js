@@ -2,6 +2,11 @@ import Phaser from 'phaser';
 
 const SLIDES = [
   {
+    title: 'HOW TO MOVE THE SPIDER',
+    caption: 'Mobile: tap the left or right side of the screen to move. Desktop: use the ← → arrow keys or A / D. Tap center or press ↑ / W to jump.',
+    draw: '_drawControlsSlide',
+  },
+  {
     title: 'STEP 1 — PLACE YOUR BET',
     caption: 'Set your bet amount and tap BET before the countdown runs out.',
     draw: '_drawBetSlide',
@@ -155,7 +160,7 @@ export default class TutorialScene extends Phaser.Scene {
     this._backBtn.setColor(showBack ? '#555566' : '#222233');
 
     // On last slide: shrink next arrow, show PLAY button
-    if (idx === 2) {
+    if (idx === SLIDES.length - 1) {
       this._nextBtn.setText('›').setColor('#00ff88').setAlpha(0.35);
       this.tweens.add({ targets: this._playBtn, alpha: 1, duration: 300, delay: 200 });
     } else {
@@ -172,8 +177,8 @@ export default class TutorialScene extends Phaser.Scene {
     g.clear();
     const dotY = height - 16;
     const spacing = 22;
-    const startX = width / 2 - spacing;
-    for (let i = 0; i < 3; i++) {
+    const startX = width / 2 - spacing * (SLIDES.length - 1) / 2;
+    for (let i = 0; i < SLIDES.length; i++) {
       const dx = startX + i * spacing;
       if (i === active) {
         g.fillStyle(0x00ff88, 1);
@@ -186,7 +191,7 @@ export default class TutorialScene extends Phaser.Scene {
   }
 
   _advance() {
-    if (this._slideIndex < 2) {
+    if (this._slideIndex < SLIDES.length - 1) {
       this._slideIndex++;
       this._showSlide(this._slideIndex);
     } else {
@@ -200,6 +205,120 @@ export default class TutorialScene extends Phaser.Scene {
       this.scene.start('GameScene');
       this.scene.launch('UIScene');
     });
+  }
+
+  // ── SLIDE 0: Controls ──────────────────────────────────────────────────────
+
+  _drawControlsSlide(g) {
+    const { x, y, w, h } = this._ILL;
+    const cx = x + w / 2;
+
+    // Pipe background
+    g.fillStyle(0x0a0a18, 1);
+    g.fillRect(x, y, w, h);
+    g.fillStyle(0x787878, 1);
+    g.fillRect(x, y, 18, h);
+    g.fillRect(x + w - 18, y, 18, h);
+    g.fillStyle(0xaaaaaa, 0.2);
+    g.fillRect(x + 18, y, 3, h);
+    g.fillRect(x + w - 21, y, 3, h);
+
+    // ── Touch zone labels (mobile) ──────────────────────────────────────────
+    const zoneY = y + h * 0.18;
+    const zoneH = h * 0.44;
+
+    // Left zone
+    g.fillStyle(0xff2200, 0.10);
+    g.fillRect(x + 18, zoneY, w * 0.38 - 18, zoneH);
+    g.lineStyle(1.5, 0xff2200, 0.35);
+    g.strokeRect(x + 18, zoneY, w * 0.38 - 18, zoneH);
+
+    // Center zone
+    g.fillStyle(0xffaa00, 0.10);
+    g.fillRect(x + w * 0.38, zoneY, w * 0.24, zoneH);
+    g.lineStyle(1.5, 0xffaa00, 0.35);
+    g.strokeRect(x + w * 0.38, zoneY, w * 0.24, zoneH);
+
+    // Right zone
+    g.fillStyle(0xff2200, 0.10);
+    g.fillRect(x + w * 0.62, zoneY, w * 0.38 - 18, zoneH);
+    g.lineStyle(1.5, 0xff2200, 0.35);
+    g.strokeRect(x + w * 0.62, zoneY, w * 0.38 - 18, zoneH);
+
+    // Zone icons
+    const leftZoneLabel = this.add.text(x + w * 0.19, zoneY + zoneH / 2 - 14, '👈', { fontSize: '26px' }).setOrigin(0.5);
+    const leftArrow     = this.add.text(x + w * 0.19, zoneY + zoneH / 2 + 16, '←', { fontSize: '22px', color: '#ff4444', fontFamily: 'Arial Black, sans-serif' }).setOrigin(0.5);
+    const jumpLabel     = this.add.text(cx,            zoneY + zoneH / 2 - 14, '👆', { fontSize: '26px' }).setOrigin(0.5);
+    const jumpText      = this.add.text(cx,            zoneY + zoneH / 2 + 16, 'JUMP', { fontSize: '13px', color: '#ffaa00', fontFamily: 'Arial Black, sans-serif' }).setOrigin(0.5);
+    const rightZoneLabel= this.add.text(x + w * 0.81, zoneY + zoneH / 2 - 14, '👉', { fontSize: '26px' }).setOrigin(0.5);
+    const rightArrow    = this.add.text(x + w * 0.81, zoneY + zoneH / 2 + 16, '→', { fontSize: '22px', color: '#ff4444', fontFamily: 'Arial Black, sans-serif' }).setOrigin(0.5);
+    this._slideObjects.push(leftZoneLabel, leftArrow, jumpLabel, jumpText, rightZoneLabel, rightArrow);
+
+    // Mobile label
+    const mobileLabel = this.add.text(cx, zoneY - 14, '📱  MOBILE — TAP ZONES', {
+      fontSize: '10px', color: '#888888', fontFamily: 'Arial Black, sans-serif',
+    }).setOrigin(0.5);
+    this._slideObjects.push(mobileLabel);
+
+    // Spider silhouette in centre
+    const sy = zoneY + zoneH + 30;
+    g.fillStyle(0x1a0a2e, 0.7);
+    g.fillEllipse(cx, sy, 34, 26);
+    g.fillEllipse(cx, sy - 18, 22, 18);
+    g.fillStyle(0xff2200, 0.9);
+    g.fillCircle(cx - 4, sy - 19, 3);
+    g.fillCircle(cx + 4, sy - 19, 3);
+    g.lineStyle(1.5, 0x8800aa, 0.8);
+    [[-14, -5, -32, -18], [-14, 2, -34, 2], [14, -5, 32, -18], [14, 2, 34, 2]].forEach(([ax, ay, bx, by]) => {
+      g.beginPath(); g.moveTo(cx + ax, sy + ay); g.lineTo(cx + bx, sy + by); g.strokePath();
+    });
+
+    // ── Keyboard layout (desktop) ───────────────────────────────────────────
+    const kbY = sy + 28;
+    const desktopLabel = this.add.text(cx, kbY, '🖥  DESKTOP — KEYBOARD', {
+      fontSize: '10px', color: '#888888', fontFamily: 'Arial Black, sans-serif',
+    }).setOrigin(0.5);
+    this._slideObjects.push(desktopLabel);
+
+    // Draw 4 keys: ← ↑ → and W A D
+    const keySize = 32;
+    const keyGap  = 5;
+    const kRow1Y  = kbY + 18;
+    const kRow2Y  = kRow1Y + keySize + keyGap;
+    const keyCX   = cx - 2;
+
+    const drawKey = (kx, ky, label, color = '#cccccc') => {
+      g.fillStyle(0x1a1a2e, 1);
+      g.fillRoundedRect(kx - keySize / 2, ky, keySize, keySize, 5);
+      g.lineStyle(1.5, 0x444466, 1);
+      g.strokeRoundedRect(kx - keySize / 2, ky, keySize, keySize, 5);
+      const kt = this.add.text(kx, ky + keySize / 2, label, {
+        fontSize: label.length > 1 ? '10px' : '14px',
+        fontFamily: 'Arial Black, sans-serif',
+        color,
+      }).setOrigin(0.5);
+      this._slideObjects.push(kt);
+    };
+
+    // Arrow keys row 1: ↑ centred above ← ↓ →
+    drawKey(keyCX, kRow1Y, '↑', '#00ff88');
+    // Arrow keys row 2
+    drawKey(keyCX - keySize - keyGap, kRow2Y, '←', '#ff4444');
+    drawKey(keyCX,                    kRow2Y, '↓', '#555555');
+    drawKey(keyCX + keySize + keyGap, kRow2Y, '→', '#ff4444');
+
+    // WASD block to the left
+    const wasdCX = keyCX - (keySize + keyGap) * 3.2;
+    drawKey(wasdCX, kRow1Y, 'W', '#00ff88');
+    drawKey(wasdCX - keySize - keyGap, kRow2Y, 'A', '#ff4444');
+    drawKey(wasdCX,                    kRow2Y, 'S', '#555555');
+    drawKey(wasdCX + keySize + keyGap, kRow2Y, 'D', '#ff4444');
+
+    // "or" between WASD and arrows
+    const orT = this.add.text(keyCX - (keySize + keyGap) * 1.5, kRow2Y + keySize / 2, 'or', {
+      fontSize: '11px', color: '#444455',
+    }).setOrigin(0.5);
+    this._slideObjects.push(orT);
   }
 
   // ── SLIDE 1: Betting ────────────────────────────────────────────────────────
