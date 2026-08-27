@@ -356,6 +356,41 @@ export default class GameScene extends Phaser.Scene {
   _spawnMagicGlowWorm() {
     if (!this.serverMode || !this.spider?.isAlive || this.gameOver) return;
     const { width, height } = this.scale;
+
+    // ── Warning banner — 2.5s heads-up, side not revealed ───────────────────
+    const warn = this.add.text(width / 2, height * 0.22, '✨  GLOW WORM INCOMING  ✨', {
+      fontSize: '14px', fontFamily: 'Arial Black, sans-serif',
+      color: '#00ffcc', stroke: '#000000', strokeThickness: 4,
+      backgroundColor: '#00000088', padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(30).setAlpha(0);
+
+    this.tweens.add({
+      targets: warn,
+      alpha: { from: 0, to: 1 },
+      duration: 300,
+      yoyo: false,
+      onComplete: () => {
+        this.tweens.add({
+          targets: warn,
+          alpha: { from: 1, to: 0.4 },
+          duration: 400,
+          yoyo: true,
+          repeat: 2,
+          onComplete: () => {
+            this.tweens.add({ targets: warn, alpha: 0, duration: 300, onComplete: () => warn.destroy() });
+          },
+        });
+      },
+    });
+
+    this.time.delayedCall(2500, () => {
+      if (!this.serverMode || !this.spider?.isAlive || this.gameOver) return;
+      this._doSpawnGlowWorm();
+    });
+  }
+
+  _doSpawnGlowWorm() {
+    const { width, height } = this.scale;
     const innerL = this.pipeInnerLeft + 14;
     const innerR = this.pipeInnerRight - 14;
     const fromLeft = Math.random() < 0.5;
