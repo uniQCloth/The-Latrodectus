@@ -204,13 +204,13 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Round state overlays ───────────────────────────────────────────────
 
-    this.countdownBanner = this.add.text(width / 2, height * 0.42, '', {
+    this.countdownBanner = this.add.text(width / 2, height * 0.38, '', {
       fontSize: '22px', fontFamily: 'Arial Black, sans-serif',
       color: '#00ff88', stroke: '#000000', strokeThickness: 4, align: 'center',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(12).setAlpha(0);
 
-    // cashout sits high, crash sits low — they never overlap
-    this.crashOverlay = this.add.text(width / 2, height * 0.46, '', {
+    // countdownBanner at 0.38, crashOverlay at 0.50 — 12% gap prevents overlap
+    this.crashOverlay = this.add.text(width / 2, height * 0.50, '', {
       fontSize: '44px', fontFamily: 'Arial Black, sans-serif',
       color: '#ff2200', stroke: '#000000', strokeThickness: 7, align: 'center',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(12).setAlpha(0);
@@ -691,8 +691,8 @@ export default class UIScene extends Phaser.Scene {
 
   enterResultUI(crashPoint, secretSeed, roundId) {
     const color = crashPoint <= 1.5 ? '#ff2200' : crashPoint <= 5 ? '#ff8800' : '#ffd700';
-    // If player cashed out, drop crash text lower so cashout text stays readable above it
-    const crashY = this.cashedOut ? this.scale.height * 0.52 : this.scale.height * 0.46;
+    // If player cashed out, push crash text lower so cashout text stays readable above it
+    const crashY = this.cashedOut ? this.scale.height * 0.56 : this.scale.height * 0.50;
     this.crashOverlay
       .setText(`CRASHED!\n${crashPoint.toFixed(2)}×`)
       .setColor(color)
@@ -945,7 +945,7 @@ export default class UIScene extends Phaser.Scene {
     const SLIDES = [
       {
         title: 'STEP 1 — PLACE YOUR BET',
-        caption: 'Set your bet amount and tap BET before the countdown runs out.',
+        caption: 'Set your bet amount and tap BET before the countdown runs out.\n\n💡 Swing the spider into the pipe walls to collect glow worms — each one boosts your multiplier!',
       },
       {
         title: 'STEP 2 — CASH OUT IN TIME',

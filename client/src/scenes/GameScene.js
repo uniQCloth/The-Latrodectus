@@ -1372,15 +1372,15 @@ export default class GameScene extends Phaser.Scene {
     tint.fillStyle(0xff2200, 0.2); tint.fillRect(0, 0, width, height);
     tint.setAlpha(0);
 
-    // Warning banner text
-    const banner = this.add.text(width / 2, height * 0.27,
+    // Warning banner text — placed above cashout overlay zone (0.26) to prevent overlap
+    const banner = this.add.text(width / 2, height * 0.13,
       '⚠  FLASH FLOOD WARNING  ⚠', {
         fontSize: '21px', fontFamily: 'Arial Black, sans-serif',
         color: '#ff3300', stroke: '#000000', strokeThickness: 5,
         backgroundColor: '#00000099', padding: { x: 14, y: 6 },
       }).setOrigin(0.5).setScrollFactor(0).setDepth(19).setAlpha(0);
 
-    const sub = this.add.text(width / 2, height * 0.36,
+    const sub = this.add.text(width / 2, height * 0.22,
       'Rising water detected in pipe…', {
         fontSize: '13px', fontFamily: 'Arial, sans-serif',
         color: '#ffbb44', stroke: '#000000', strokeThickness: 3,
