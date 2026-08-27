@@ -286,8 +286,8 @@ app.post('/admin/withdraw', requireAdmin, async (req, res) => {
   if (db.isEnabled()) {
     await db.query(
       `INSERT INTO transactions (player_id, type, amount, destination_address, status)
-       SELECT id, 'withdrawal', $2, $3, 'pending' FROM players WHERE is_admin = TRUE LIMIT 1`,
-      [null, amt, toAddress]
+       SELECT id, 'withdrawal', $1, $2, 'pending' FROM players WHERE is_admin = TRUE LIMIT 1`,
+      [amt, toAddress]
     ).catch(() => {}); // non-fatal
   }
 
