@@ -359,7 +359,7 @@ export default class SoundManager {
     }
     if (this._gameBeatGain) {
       this._gameBeatGain.gain.setValueAtTime(this._gameBeatGain.gain.value, now);
-      this._gameBeatGain.gain.linearRampToValueAtTime(muted ? 0 : 0.30, now + 0.3);
+      this._gameBeatGain.gain.linearRampToValueAtTime(muted ? 0 : 0.58, now + 0.3);
     }
   }
 
@@ -380,7 +380,7 @@ export default class SoundManager {
     // Dedicated gain bus — fades in over 1.8 s, routes to output
     const beatGain = ctx.createGain();
     beatGain.gain.setValueAtTime(0, ctx.currentTime);
-    beatGain.gain.linearRampToValueAtTime(0.30, ctx.currentTime + 1.8);
+    beatGain.gain.linearRampToValueAtTime(0.58, ctx.currentTime + 1.8);
     beatGain.connect(ctx.destination);
     this._gameBeatGain = beatGain;
     this._gameBeatOscs = [];
@@ -390,7 +390,7 @@ export default class SoundManager {
     sub.type = 'sine';
     sub.frequency.value = 55;
     const subG = ctx.createGain();
-    subG.gain.value = 0.30;
+    subG.gain.value = 0.42;
     sub.connect(subG); subG.connect(beatGain);
     sub.start();
     this._gameBeatOscs.push(sub);
