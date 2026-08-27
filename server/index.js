@@ -509,14 +509,17 @@ io.on('connection', async (socket) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-db.init(); // no-op if DATABASE_URL not set
-db.isEnabled() && setTimeout(seedUsernameRegistry, 500); // seed after pool is ready
-
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`\n🕷  Widow Spider Multiplier — port ${PORT}`);
-  console.log(`   Health:      http://localhost:${PORT}/health`);
-  console.log(`   History:     http://localhost:${PORT}/history`);
-  console.log(`   Leaderboard: http://localhost:${PORT}/leaderboard`);
-  console.log(`   DB mode:     ${db.isEnabled() ? 'PostgreSQL' : 'in-memory'}\n`);
-});
+
+(async () => {
+  await db.init(); // waits for schema to apply before accepting traffic
+  if (db.isEnabled()) seedUsernameRegistry();
+
+  server.listen(PORT, () => {
+    console.log(`\n🕷  Widow Spider Multiplier — port ${PORT}`);
+    console.log(`   Health:      http://localhost:${PORT}/health`);
+    console.log(`   History:     http://localhost:${PORT}/history`);
+    console.log(`   Leaderboard: http://localhost:${PORT}/leaderboard`);
+    console.log(`   DB mode:     ${db.isEnabled() ? 'PostgreSQL' : 'in-memory'}\n`);
+  });
+})();
