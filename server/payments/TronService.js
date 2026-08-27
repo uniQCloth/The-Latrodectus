@@ -113,15 +113,36 @@ class EthService {
     }
   }
 
-  // ── House Balance ─────────────────────────────────────────────────────────
+  // ── House (Hot Wallet) Balance ────────────────────────────────────────────
 
   async getHouseBalance() {
-    if (this.mockMode) return { ok: true, balance: 999999.99 };
+    if (this.mockMode) return { ok: true, balance: 0, mock: true };
     try {
       const { ethers }  = require('ethers');
       const contract    = new ethers.Contract(this.contractAddr, USDT_ABI, this.provider);
       const raw         = await contract.balanceOf(this.houseAddress);
       const balance     = Number(raw) / Math.pow(10, USDT_DECIMALS);
+      return { ok: true, balance };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
+
+  // ── Cold Wallet ───────────────────────────────────────────────────────────
+
+  getColdWalletAddress() {
+    return process.env.ETH_COLD_WALLET || null;
+  }
+
+  async getColdWalletBalance() {
+    const coldAddress = process.env.ETH_COLD_WALLET;
+    if (!coldAddress) return { ok: false, error: 'ETH_COLD_WALLET not set' };
+    if (this.mockMode) return { ok: true, balance: 0, mock: true };
+    try {
+      const { ethers } = require('ethers');
+      const contract   = new ethers.Contract(this.contractAddr, USDT_ABI, this.provider);
+      const raw        = await contract.balanceOf(coldAddress);
+      const balance    = Number(raw) / Math.pow(10, USDT_DECIMALS);
       return { ok: true, balance };
     } catch (err) {
       return { ok: false, error: err.message };

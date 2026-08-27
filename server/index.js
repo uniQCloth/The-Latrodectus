@@ -398,6 +398,43 @@ app.get('/payment/history/:socketId', async (req, res) => {
   res.json(result?.rows || []);
 });
 
+// Admin: hot wallet on-chain USDT balance
+app.get('/admin/hot-wallet', requireAdmin, async (req, res) => {
+  const address = tron.getHouseAddress();
+  const result  = await tron.getHouseBalance();
+  res.json({ address, balance: result.balance ?? 0, ok: result.ok, mock: result.mock || false });
+});
+
+// Admin: cold wallet address + on-chain USDT balance (read-only)
+app.get('/admin/cold-wallet', requireAdmin, async (req, res) => {
+  const address = tron.getColdWalletAddress();
+  if (!address) return res.json({ configured: false, balance: 0 });
+  const result  = await tron.getColdWalletBalance();
+  res.json({ configured: true, address, balance: result.balance ?? 0, ok: result.ok, mock: result.mock || false });
+});
+
+// Admin: transfer USDT from hot wallet directly to cold wallet
+app.post('/admin/cold-transfer', requireAdmin, async (req, res) => {
+  const { amount } = req.body;
+  const amt = parseFloat(amount);
+  if (!amt || amt <= 0) return res.status(400).json({ error: 'amount required' });
+
+  const coldAddress = tron.getColdWalletAddress();
+  if (!coldAddress) return res.status(400).json({ error: 'Cold wallet not configured — set ETH_COLD_WALLET on Render' });
+  if (!tron.isValidAddress(coldAddress)) return res.status(400).json({ error: 'Invalid cold wallet address' });
+
+  const hotResult = await tron.getHouseBalance();
+  if (hotResult.ok && hotResult.balance < amt) {
+    return res.status(400).json({ error: `Insufficient hot wallet balance ($${hotResult.balance?.toFixed(2) ?? 0} USDT on-chain)` });
+  }
+
+  const sendResult = await tron.sendUSDT(coldAddress, amt);
+  if (!sendResult.ok) return res.status(500).json({ error: sendResult.error });
+
+  console.log(`[Admin Cold Transfer] $${amt} USDT → cold ${coldAddress} | txHash: ${sendResult.txid}`);
+  res.json({ ok: true, txid: sendResult.txid, amount: amt, mock: sendResult.mock || false });
+});
+
 // Admin: manual review queue — pending withdrawals awaiting approval
 app.get('/admin/withdrawal-queue', requireAdmin, (req, res) => {
   res.json(withdrawalProcessor.getQueue());

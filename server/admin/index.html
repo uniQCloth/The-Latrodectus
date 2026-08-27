@@ -38,11 +38,38 @@
   .tab.active { color:#cc44ff; border-bottom-color:#8800aa; }
   .tab:hover:not(.active) { color:#aaa; }
 
-  .content { padding:28px; max-width:960px; }
+  .content { padding:28px; max-width:1100px; }
 
   /* ── Cards ── */
   .card { background:#111; border:1px solid #222; border-radius:10px; padding:24px; margin-bottom:20px; }
   .card h2 { font-size:14px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:16px; }
+
+  .wallet-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; }
+  @media(max-width:700px) { .wallet-grid { grid-template-columns:1fr; } }
+
+  .wallet-card { background:#111; border:2px solid #222; border-radius:10px; padding:24px; }
+  .wallet-card.hot  { border-color:#ff6600; }
+  .wallet-card.cold { border-color:#0066ff; }
+
+  .wallet-card .wc-label { font-size:11px; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px; }
+  .wallet-card.hot  .wc-label { color:#ff6600; }
+  .wallet-card.cold .wc-label { color:#4499ff; }
+
+  .wallet-card .wc-balance { font-size:38px; font-weight:bold; color:#fff; margin-bottom:4px; }
+  .wallet-card .wc-addr { font-size:11px; color:#444; font-family:monospace; word-break:break-all; margin-bottom:16px; }
+  .wallet-card .wc-network { display:inline-block; font-size:10px; padding:2px 8px;
+                              border-radius:4px; margin-bottom:14px; }
+  .wallet-card.hot  .wc-network { background:#331100; color:#ff8844; }
+  .wallet-card.cold .wc-network { background:#001133; color:#4499ff; }
+
+  .wc-action { margin-top:4px; }
+  .wc-action label { display:block; font-size:11px; color:#555; margin-bottom:6px;
+                     text-transform:uppercase; letter-spacing:.5px; }
+  .wc-row { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
+  .wc-row input { flex:1; min-width:120px; padding:9px 12px; background:#1a1a1a;
+                  border:1px solid #333; border-radius:6px; color:#fff; font-size:13px; outline:none; }
+  .wc-row input:focus { border-color:#8800aa; }
+
   .stat-big { font-size:42px; font-weight:bold; color:#00ff88; }
   .stat-sub { font-size:13px; color:#555; margin-top:4px; }
 
@@ -51,20 +78,19 @@
               border-radius:8px; padding:18px; }
   .card-sm .label { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:1px; }
   .card-sm .value { font-size:28px; font-weight:bold; color:#fff; margin-top:6px; }
-  .card-sm .value.green { color:#00ff88; }
+  .card-sm .value.green  { color:#00ff88; }
   .card-sm .value.orange { color:#ff8800; }
   .card-sm .value.purple { color:#cc44ff; }
 
-  /* ── Withdrawal widget ── */
-  .withdraw-row { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:16px; }
-  .withdraw-row input { flex:1; min-width:200px; padding:10px 12px; background:#1a1a1a;
-                        border:1px solid #333; border-radius:6px; color:#fff; font-size:14px; outline:none; }
-  .withdraw-row input:focus { border-color:#8800aa; }
-  .withdraw-row .amt-input { max-width:160px; }
+  /* ── Buttons ── */
   .btn { padding:10px 22px; border:none; border-radius:6px; font-size:14px;
-         font-weight:bold; cursor:pointer; transition:background .15s; }
+         font-weight:bold; cursor:pointer; transition:background .15s; white-space:nowrap; }
   .btn-purple { background:#8800aa; color:#fff; }
   .btn-purple:hover { background:#aa00cc; }
+  .btn-orange { background:#cc5500; color:#fff; }
+  .btn-orange:hover { background:#ee6600; }
+  .btn-blue   { background:#0055cc; color:#fff; }
+  .btn-blue:hover   { background:#0077ee; }
   .btn-green  { background:#00aa55; color:#fff; }
   .btn-green:hover  { background:#00cc66; }
   .btn-red    { background:#aa2200; color:#fff; }
@@ -74,6 +100,9 @@
   .msg.ok  { color:#00ff88; }
   .msg.err { color:#ff4444; }
 
+  /* ── Divider ── */
+  .divider { border:none; border-top:1px solid #1a1a1a; margin:20px 0; }
+
   /* ── Tables ── */
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th { text-align:left; padding:10px 12px; color:#555; font-weight:normal;
@@ -82,17 +111,19 @@
   tr:last-child td { border-bottom:none; }
   tr:hover td { background:#0d0d0d; }
   .badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:bold; }
-  .badge-pending { background:#332200; color:#ff8800; }
+  .badge-pending   { background:#332200; color:#ff8800; }
   .badge-confirmed { background:#002211; color:#00ff88; }
 
   .empty { color:#444; text-align:center; padding:40px; font-size:14px; }
   .total-row { background:#0d0d0d; font-weight:bold; }
   .total-row td { color:#fff; border-top:2px solid #222; }
 
-  /* ── Refresh ── */
   .refresh-btn { background:none; border:1px solid #333; color:#666; padding:6px 14px;
                  border-radius:6px; cursor:pointer; font-size:12px; }
   .refresh-btn:hover { border-color:#666; color:#ccc; }
+
+  .mock-badge { display:inline-block; background:#332200; color:#ff8800; font-size:10px;
+                padding:1px 6px; border-radius:3px; margin-left:6px; }
 </style>
 </head>
 <body>
@@ -122,26 +153,65 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="showTab('wallet',this)">💰 House Wallet</div>
+    <div class="tab active" onclick="showTab('wallet',this)">💰 Wallets</div>
     <div class="tab" onclick="showTab('players',this)">📋 Player Withdrawals</div>
     <div class="tab" onclick="showTab('pending',this)">⏳ Pending Approvals</div>
   </div>
 
-  <!-- ── WALLET TAB ── -->
+  <!-- ══════════════ WALLET TAB ══════════════ -->
   <div id="tab-wallet" class="content">
-    <div class="card">
-      <h2>House Wallet — Accumulated Profit</h2>
-      <div class="stat-big" id="house-balance">$-.--</div>
-      <div class="stat-sub">USDT available for withdrawal</div>
 
-      <div class="withdraw-row" style="margin-top:24px;">
-        <input type="text" id="w-addr" placeholder="0xYourEthereumAddress…" style="flex:2;" />
-        <input type="number" id="w-amt" class="amt-input" placeholder="Amount USDT" min="1" step="1" />
-        <button class="btn btn-purple" onclick="adminWithdraw()">Withdraw to Wallet</button>
+    <!-- Dual wallet cards -->
+    <div class="wallet-grid">
+
+      <!-- Hot Wallet -->
+      <div class="wallet-card hot">
+        <div class="wc-label">🔥 Hot Wallet (Active)</div>
+        <div class="wc-balance" id="hot-balance">Loading…</div>
+        <div style="font-size:12px;color:#555;margin-bottom:4px;">USDT on-chain</div>
+        <div class="wc-network">Ethereum Mainnet · ERC-20</div>
+        <div class="wc-addr" id="hot-address">—</div>
+
+        <hr class="divider">
+        <div class="wc-action">
+          <label>Withdraw from Hot Wallet to any address</label>
+          <div class="wc-row">
+            <input type="text" id="hot-w-addr" placeholder="0xDestination…" />
+            <input type="number" id="hot-w-amt"  placeholder="Amount USDT" min="1" step="any" style="max-width:140px;" />
+            <button class="btn btn-orange" onclick="adminWithdraw()">Withdraw</button>
+          </div>
+          <div class="msg" id="hot-w-msg"></div>
+        </div>
       </div>
-      <div class="msg" id="w-msg"></div>
+
+      <!-- Cold Wallet -->
+      <div class="wallet-card cold">
+        <div class="wc-label">🧊 Cold Storage (Secure)</div>
+        <div class="wc-balance" id="cold-balance">Loading…</div>
+        <div style="font-size:12px;color:#555;margin-bottom:4px;">USDT on-chain</div>
+        <div class="wc-network">Ethereum Mainnet · ERC-20</div>
+        <div class="wc-addr" id="cold-address">—</div>
+
+        <hr class="divider">
+        <div class="wc-action">
+          <label>Move funds from Hot → Cold Storage</label>
+          <div class="wc-row">
+            <input type="number" id="cold-t-amt" placeholder="Amount USDT" min="1" step="any" />
+            <button class="btn btn-blue" onclick="coldTransfer()">Move to Cold</button>
+          </div>
+          <div class="msg" id="cold-t-msg"></div>
+        </div>
+      </div>
     </div>
 
+    <!-- Accumulated house profit (DB tracked) -->
+    <div class="card">
+      <h2>Accumulated House Profit <span id="profit-mock-badge" style="display:none;" class="mock-badge">MOCK</span></h2>
+      <div class="stat-big" id="house-balance">$-.--</div>
+      <div class="stat-sub">Tracked in database — profits from crashed rounds</div>
+    </div>
+
+    <!-- Today's summary -->
     <div class="card">
       <h2>Today's Summary</h2>
       <div class="card-row">
@@ -163,9 +233,13 @@
         </div>
       </div>
     </div>
+
+    <div style="text-align:right;">
+      <button class="refresh-btn" onclick="loadWalletTab()">↻ Refresh All</button>
+    </div>
   </div>
 
-  <!-- ── PLAYER WITHDRAWALS TAB ── -->
+  <!-- ══════════════ PLAYER WITHDRAWALS TAB ══════════════ -->
   <div id="tab-players" class="content" style="display:none;">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -199,7 +273,7 @@
     </div>
   </div>
 
-  <!-- ── PENDING APPROVALS TAB ── -->
+  <!-- ══════════════ PENDING APPROVALS TAB ══════════════ -->
   <div id="tab-pending" class="content" style="display:none;">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -236,8 +310,8 @@ let TOKEN = localStorage.getItem('admin_token') || null;
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
 async function adminLogin() {
-  const user = document.getElementById('l-user').value.trim();
-  const pass = document.getElementById('l-pass').value;
+  const user  = document.getElementById('l-user').value.trim();
+  const pass  = document.getElementById('l-pass').value;
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
 
@@ -296,29 +370,60 @@ function showTab(name, el) {
 
 async function loadWalletTab() {
   try {
-    const [balRes, statsRes] = await Promise.all([
-      fetch(`${SERVER}/admin/balance`, { headers: authHeaders() }),
-      fetch(`${SERVER}/admin/stats`,   { headers: authHeaders() }),
+    const [hotRes, coldRes, balRes, statsRes] = await Promise.all([
+      fetch(`${SERVER}/admin/hot-wallet`,  { headers: authHeaders() }),
+      fetch(`${SERVER}/admin/cold-wallet`, { headers: authHeaders() }),
+      fetch(`${SERVER}/admin/balance`,     { headers: authHeaders() }),
+      fetch(`${SERVER}/admin/stats`,       { headers: authHeaders() }),
     ]);
-    if (balRes.status === 401 || balRes.status === 403) { adminLogout(); return; }
 
-    const bal   = await balRes.json();
+    if (hotRes.status === 401 || hotRes.status === 403) { adminLogout(); return; }
+
+    const hot   = hotRes.ok   ? await hotRes.json()   : {};
+    const cold  = coldRes.ok  ? await coldRes.json()  : {};
+    const bal   = balRes.ok   ? await balRes.json()   : {};
     const stats = statsRes.ok ? await statsRes.json() : {};
 
-    document.getElementById('house-balance').textContent = `$${(bal.balance || 0).toFixed(2)}`;
+    // Hot wallet
+    const hotBal = hot.balance ?? 0;
+    document.getElementById('hot-balance').textContent =
+      `$${hotBal.toFixed(2)}${hot.mock ? ' (mock)' : ''}`;
+    document.getElementById('hot-address').textContent =
+      hot.address || 'Not configured — set ETH_HOUSE_ADDRESS';
+
+    // Cold wallet
+    if (!cold.configured) {
+      document.getElementById('cold-balance').textContent = 'Not configured';
+      document.getElementById('cold-address').textContent = 'Set ETH_COLD_WALLET on Render to enable';
+    } else {
+      const coldBal = cold.balance ?? 0;
+      document.getElementById('cold-balance').textContent =
+        `$${coldBal.toFixed(2)}${cold.mock ? ' (mock)' : ''}`;
+      document.getElementById('cold-address').textContent = cold.address || '—';
+    }
+
+    // Accumulated profit (DB)
+    const profitBal = bal.balance ?? 0;
+    document.getElementById('house-balance').textContent = `$${profitBal.toFixed(2)}`;
+
+    // Today stats
     document.getElementById('today-wagered').textContent = `$${(stats.todayWagered || 0).toFixed(2)}`;
     document.getElementById('today-paid').textContent    = `$${(stats.todayPaid    || 0).toFixed(2)}`;
     document.getElementById('today-profit').textContent  = `$${(stats.todayProfit  || 0).toFixed(2)}`;
     document.getElementById('today-rounds').textContent  = stats.todayRounds || '0';
+
   } catch (e) {
-    document.getElementById('house-balance').textContent = 'Error loading';
+    document.getElementById('hot-balance').textContent  = 'Error loading';
+    document.getElementById('cold-balance').textContent = 'Error loading';
   }
 }
 
+// ─── Hot Wallet Withdraw ───────────────────────────────────────────────────
+
 async function adminWithdraw() {
-  const addr = document.getElementById('w-addr').value.trim();
-  const amt  = parseFloat(document.getElementById('w-amt').value);
-  const msg  = document.getElementById('w-msg');
+  const addr = document.getElementById('hot-w-addr').value.trim();
+  const amt  = parseFloat(document.getElementById('hot-w-amt').value);
+  const msg  = document.getElementById('hot-w-msg');
   msg.className = 'msg';
   msg.textContent = '';
 
@@ -328,9 +433,9 @@ async function adminWithdraw() {
   if (!amt || amt <= 0) {
     msg.className = 'msg err'; msg.textContent = 'Enter a valid amount'; return;
   }
-  if (!confirm(`Withdraw $${amt.toFixed(2)} USDT to ${addr}?\n\nThis will be sent immediately from the house wallet.`)) return;
+  if (!confirm(`Withdraw $${amt.toFixed(2)} USDT to:\n${addr}\n\nThis sends immediately from the hot wallet.`)) return;
 
-  msg.textContent = 'Processing…';
+  msg.textContent = 'Broadcasting transaction…';
   try {
     const res  = await fetch(`${SERVER}/admin/withdraw`, {
       method: 'POST', headers: authHeaders(),
@@ -339,7 +444,40 @@ async function adminWithdraw() {
     const data = await res.json();
     if (data.ok) {
       msg.className = 'msg ok';
-      msg.textContent = `✓ Sent $${amt.toFixed(2)} USDT${data.mock ? ' (MOCK)' : ''} — Tx: ${(data.txid||'').slice(0,24)}…`;
+      msg.textContent = `✓ Sent $${amt.toFixed(2)} USDT${data.mock ? ' (MOCK)' : ''} — Tx: ${(data.txid||'').slice(0,20)}…`;
+      loadWalletTab();
+    } else {
+      msg.className = 'msg err'; msg.textContent = `✗ ${data.error}`;
+    }
+  } catch {
+    msg.className = 'msg err'; msg.textContent = 'Server error — try again';
+  }
+}
+
+// ─── Hot → Cold Transfer ───────────────────────────────────────────────────
+
+async function coldTransfer() {
+  const amt = parseFloat(document.getElementById('cold-t-amt').value);
+  const msg = document.getElementById('cold-t-msg');
+  msg.className = 'msg';
+  msg.textContent = '';
+
+  if (!amt || amt <= 0) {
+    msg.className = 'msg err'; msg.textContent = 'Enter a valid amount'; return;
+  }
+  const coldAddr = document.getElementById('cold-address').textContent;
+  if (!confirm(`Move $${amt.toFixed(2)} USDT from Hot Wallet → Cold Storage?\n\nDestination: ${coldAddr}\n\nThis cannot be undone.`)) return;
+
+  msg.textContent = 'Broadcasting transfer…';
+  try {
+    const res  = await fetch(`${SERVER}/admin/cold-transfer`, {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ amount: amt }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.className = 'msg ok';
+      msg.textContent = `✓ Moved $${amt.toFixed(2)} USDT to cold storage${data.mock ? ' (MOCK)' : ''} — Tx: ${(data.txid||'').slice(0,20)}…`;
       loadWalletTab();
     } else {
       msg.className = 'msg err'; msg.textContent = `✗ ${data.error}`;
@@ -367,12 +505,12 @@ async function loadPlayerWithdrawals() {
 
     let totalRequested = 0, totalSent = 0;
     tbody.innerHTML = rows.map(r => {
-      const amt = parseFloat(r.amount);
-      const fee = 5;
+      const amt  = parseFloat(r.amount);
+      const fee  = 5;
       const sent = Math.max(0, amt - fee);
       totalRequested += amt;
-      totalSent += sent;
-      const date = new Date(r.created_at).toLocaleDateString();
+      totalSent      += sent;
+      const date    = new Date(r.created_at).toLocaleDateString();
       const txShort = r.txid ? r.txid.slice(0,14)+'…' : '—';
       const badgeCls = r.status === 'confirmed' ? 'badge-confirmed' : 'badge-pending';
       return `<tr>
@@ -387,7 +525,7 @@ async function loadPlayerWithdrawals() {
     }).join('');
 
     document.getElementById('total-requested').textContent = `$${totalRequested.toFixed(2)}`;
-    document.getElementById('total-sent').textContent = `$${totalSent.toFixed(2)}`;
+    document.getElementById('total-sent').textContent      = `$${totalSent.toFixed(2)}`;
   } catch {
     tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load — check server</td></tr>';
   }
@@ -429,7 +567,7 @@ async function loadPendingQueue() {
 }
 
 async function approveWithdrawal(index) {
-  if (!confirm('Approve this withdrawal? USDT will be sent immediately.')) return;
+  if (!confirm('Approve this withdrawal? USDT will be sent immediately from the hot wallet.')) return;
   try {
     const res  = await fetch(`${SERVER}/admin/withdrawal-queue/${index}/approve`, {
       method: 'POST', headers: authHeaders(),
@@ -447,7 +585,7 @@ async function approveWithdrawal(index) {
 }
 
 async function rejectWithdrawal(index) {
-  if (!confirm('Reject and remove this withdrawal request? The player\'s balance will NOT be refunded automatically — you must handle that manually.')) return;
+  if (!confirm("Reject this request?\n\nNote: the player's balance will NOT be automatically refunded — handle that manually if needed.")) return;
   try {
     await fetch(`${SERVER}/admin/withdrawal-queue/${index}/reject`, {
       method: 'POST', headers: authHeaders(),
@@ -460,7 +598,6 @@ async function rejectWithdrawal(index) {
 
 // ─── Auto-login if token exists ────────────────────────────────────────────
 if (TOKEN) {
-  // Verify token is still valid by loading balance
   fetch(`${SERVER}/admin/balance`, { headers: authHeaders() }).then(r => {
     if (r.ok) {
       const pay = JSON.parse(atob(TOKEN.split('.')[1]));
@@ -472,7 +609,6 @@ if (TOKEN) {
   }).catch(() => {});
 }
 
-// Enter key on login
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') {
     adminLogin();
