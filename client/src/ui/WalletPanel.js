@@ -120,8 +120,10 @@ export default class WalletPanel {
   _renderDeposit(x, y, w, cx) {
     const add = (el) => this.elements.push(el);
     const address = this.depositInfo?.houseAddress || 'Loading…';
+    const token   = this.depositInfo?.token || 'USDT-ERC20';
+    const chain   = this.depositInfo?.chain || 'Ethereum';
 
-    add(this.scene.add.text(cx, y, 'Send USDT-TRC20 to this address:', {
+    add(this.scene.add.text(cx, y, `Send ${token} (${chain}) to this address:`, {
       fontSize: '13px', color: '#aaaaaa',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
@@ -131,18 +133,23 @@ export default class WalletPanel {
     add(addrBg);
 
     const addrText = this.scene.add.text(cx, y + 30, address, {
-      fontSize: '11px', color: '#00ff88', fontFamily: 'monospace',
+      fontSize: '10px', color: '#00ff88', fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(33);
     add(addrText);
 
     // Instructions
     add(this.scene.add.text(cx, y + 60,
-      '1. Send USDT-TRC20 to address above\n2. Copy your transaction ID (TXID)\n3. Enter TXID + amount below',
+      `1. Send USDT-ERC20 (Ethereum) to address above\n2. Copy your transaction hash (0x…)\n3. Enter tx hash + amount below and click verify`,
       { fontSize: '12px', color: '#888888', align: 'center' }
     ).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
     // TXID input (HTML overlay)
-    add(this.scene.add.text(cx, y + 108, 'Transaction ID (TXID):', {
+    add(this.scene.add.text(cx, y + 92,
+      '⚠ ETHEREUM NETWORK ONLY — ERC-20 USDT  •  Min deposit $10',
+      { fontSize: '11px', color: '#ff6600', align: 'center' }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(32));
+
+    add(this.scene.add.text(cx, y + 108, 'Transaction Hash (0x…):', {
       fontSize: '12px', color: '#aaaaaa',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
@@ -178,31 +185,49 @@ export default class WalletPanel {
 
   _renderWithdraw(x, y, w, cx) {
     const add = (el) => this.elements.push(el);
+    const FEE = 5;
+    const MIN = 10;
+    const MAX_DAILY = 2000;
 
-    add(this.scene.add.text(cx, y, 'Withdraw USDT to your TRC20 wallet:', {
+    add(this.scene.add.text(cx, y, 'Withdraw USDT-ERC20 to your Ethereum wallet:', {
       fontSize: '13px', color: '#aaaaaa',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
-    add(this.scene.add.text(cx, y + 30, 'Your TRC20 address:', {
+    add(this.scene.add.text(cx, y + 22, 'Your Ethereum address (0x…):', {
       fontSize: '12px', color: '#888888',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
-    const addrInput = this._createInput(cx, y + 52, w, 'TYourWalletAddressHere…');
+    const addrInput = this._createInput(cx, y + 42, w, '0xYourEthereumAddressHere…');
     add(addrInput.el);
 
-    add(this.scene.add.text(cx, y + 80, 'Amount (USDT) — min $5:', {
+    add(this.scene.add.text(cx, y + 68, `Amount to withdraw (USDT) — min $${MIN}:`, {
       fontSize: '12px', color: '#888888',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
-    const amtInput = this._createInput(cx, y + 102, w * 0.4, '5.00');
+    const amtInput = this._createInput(cx, y + 88, w * 0.38, '10.00');
     add(amtInput.el);
 
-    add(this.scene.add.text(cx, y + 128,
-      '• Min $5 USDT  • 10 min cooldown\n• >$500 requires manual review (24h)',
-      { fontSize: '11px', color: '#555555', align: 'center' }
+    // Live fee breakdown — updates as user types
+    const feeText = this.scene.add.text(cx, y + 112,
+      `$${FEE} transaction fee  →  you receive $${MIN - FEE} USDT`,
+      { fontSize: '11px', color: '#ff8800', align: 'center' }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(32);
+    add(feeText);
+
+    add(this.scene.add.text(cx, y + 130,
+      `• Min $${MIN}  • Max $${MAX_DAILY}/day  • $${FEE} fee per withdrawal  • 10 min cooldown`,
+      { fontSize: '10px', color: '#555555', align: 'center' }
     ).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
-    const withdrawBtn = this.scene.add.text(cx, y + 168, 'WITHDRAW', {
+    // Update fee text as amount changes
+    const amtEl = amtInput.dom;
+    amtEl.addEventListener('input', () => {
+      const v = parseFloat(amtEl.value) || 0;
+      const net = Math.max(0, v - FEE);
+      feeText.setText(`$${FEE} transaction fee  →  you receive $${net.toFixed(2)} USDT`);
+    });
+
+    const withdrawBtn = this.scene.add.text(cx, y + 158, 'WITHDRAW', {
       fontSize: '16px', fontFamily: 'Arial Black, sans-serif',
       color: '#000000', backgroundColor: '#ff8800',
       padding: { x: 24, y: 10 },
@@ -215,7 +240,7 @@ export default class WalletPanel {
     withdrawBtn.on('pointerout', () => withdrawBtn.setStyle({ backgroundColor: '#ff8800' }));
     add(withdrawBtn);
 
-    this.resultText = this.scene.add.text(cx, y + 210, '', {
+    this.resultText = this.scene.add.text(cx, y + 205, '', {
       fontSize: '12px', color: '#00ff88', align: 'center', wordWrap: { width: w },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
     add(this.resultText);
@@ -270,7 +295,7 @@ export default class WalletPanel {
     const amount = parseFloat(amtEl?.value);
 
     if (!txid) return this._showResult('Enter a transaction ID', false);
-    if (!amount || amount < 1) return this._showResult('Enter a valid amount (min $1)', false);
+    if (!amount || amount < 10) return this._showResult('Minimum deposit is $10 USDT (Ethereum ERC-20 only)', false);
 
     btn.setText('Verifying…').setStyle({ backgroundColor: '#555555' });
 
@@ -301,8 +326,9 @@ export default class WalletPanel {
     const toAddress = addrEl?.value?.trim();
     const amount = parseFloat(amtEl?.value);
 
-    if (!toAddress) return this._showResult('Enter your TRC20 wallet address', false);
-    if (!amount || amount < 5) return this._showResult('Minimum withdrawal is $5 USDT', false);
+    if (!toAddress) return this._showResult('Enter your Ethereum wallet address (0x…)', false);
+    if (!toAddress.startsWith('0x') || toAddress.length !== 42) return this._showResult('Address must be a valid Ethereum address (0x + 40 hex chars)', false);
+    if (!amount || amount < 10) return this._showResult('Minimum withdrawal is $10 USDT (you receive $5 after the $5 fee)', false);
 
     btn.setText('Processing…').setStyle({ backgroundColor: '#555555' });
 
@@ -315,9 +341,10 @@ export default class WalletPanel {
       const data = await res.json();
 
       if (data.ok) {
+        const net = data.netAmount ?? (amount - 5);
         const msg = data.status === 'queued'
           ? `⏳ ${data.message}`
-          : `✓ Sent $${amount} USDT${data.mock ? ' (MOCK)' : ''}\nTXID: ${data.txid?.slice(0, 20)}…`;
+          : `✓ Sent $${net.toFixed(2)} USDT${data.mock ? ' (MOCK)' : ''}\nTx: ${data.txid?.slice(0, 22)}…`;
         this._showResult(msg, true);
         if (this.onBalanceUpdate) this.onBalanceUpdate(data.newBalance);
       } else {

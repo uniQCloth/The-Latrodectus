@@ -27,6 +27,9 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='players' AND column_name='password_hash') THEN
     ALTER TABLE players ADD COLUMN password_hash VARCHAR(255);
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='players' AND column_name='is_admin') THEN
+    ALTER TABLE players ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
 END $$;
 
 -- ── Rounds ───────────────────────────────────────────────────────────────────

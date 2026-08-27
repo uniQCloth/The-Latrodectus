@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Latrodectus — Admin</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0a; color: #e0e0e0; font-family: 'Arial', sans-serif; min-height: 100vh; }
+
+  /* ── Login ── */
+  #login-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+  .login-box { background:#111; border:2px solid #8800aa; border-radius:12px; padding:40px; width:360px; }
+  .login-box h1 { color:#cc44ff; font-size:22px; text-align:center; margin-bottom:6px; }
+  .login-box p  { color:#666; font-size:12px; text-align:center; margin-bottom:28px; }
+  .login-box label { display:block; font-size:12px; color:#888; margin-bottom:4px; margin-top:16px; }
+  .login-box input { width:100%; padding:10px 12px; background:#1a1a1a; border:1px solid #333; border-radius:6px;
+                     color:#fff; font-size:14px; outline:none; }
+  .login-box input:focus { border-color:#8800aa; }
+  .login-box button { width:100%; margin-top:24px; padding:12px; background:#8800aa; color:#fff;
+                      border:none; border-radius:6px; font-size:16px; font-weight:bold; cursor:pointer; }
+  .login-box button:hover { background:#aa00cc; }
+  #login-error { color:#ff4444; font-size:12px; text-align:center; margin-top:12px; min-height:18px; }
+
+  /* ── Dashboard ── */
+  #dashboard { display:none; }
+  .topbar { background:#111; border-bottom:2px solid #8800aa; padding:14px 28px;
+            display:flex; align-items:center; justify-content:space-between; }
+  .topbar h1 { color:#cc44ff; font-size:20px; }
+  .topbar span { color:#666; font-size:13px; }
+  .topbar button { background:#333; color:#ccc; border:none; border-radius:6px;
+                   padding:8px 16px; cursor:pointer; font-size:13px; }
+  .topbar button:hover { background:#555; }
+
+  .tabs { display:flex; gap:0; border-bottom:2px solid #222; padding:0 28px; background:#0d0d0d; }
+  .tab { padding:14px 24px; cursor:pointer; font-size:13px; font-weight:bold; color:#666;
+         border-bottom:3px solid transparent; transition:all .2s; }
+  .tab.active { color:#cc44ff; border-bottom-color:#8800aa; }
+  .tab:hover:not(.active) { color:#aaa; }
+
+  .content { padding:28px; max-width:960px; }
+
+  /* ── Cards ── */
+  .card { background:#111; border:1px solid #222; border-radius:10px; padding:24px; margin-bottom:20px; }
+  .card h2 { font-size:14px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:16px; }
+  .stat-big { font-size:42px; font-weight:bold; color:#00ff88; }
+  .stat-sub { font-size:13px; color:#555; margin-top:4px; }
+
+  .card-row { display:flex; gap:16px; flex-wrap:wrap; }
+  .card-sm  { flex:1; min-width:180px; background:#0d0d0d; border:1px solid #1a1a1a;
+              border-radius:8px; padding:18px; }
+  .card-sm .label { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:1px; }
+  .card-sm .value { font-size:28px; font-weight:bold; color:#fff; margin-top:6px; }
+  .card-sm .value.green { color:#00ff88; }
+  .card-sm .value.orange { color:#ff8800; }
+  .card-sm .value.purple { color:#cc44ff; }
+
+  /* ── Withdrawal widget ── */
+  .withdraw-row { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:16px; }
+  .withdraw-row input { flex:1; min-width:200px; padding:10px 12px; background:#1a1a1a;
+                        border:1px solid #333; border-radius:6px; color:#fff; font-size:14px; outline:none; }
+  .withdraw-row input:focus { border-color:#8800aa; }
+  .withdraw-row .amt-input { max-width:160px; }
+  .btn { padding:10px 22px; border:none; border-radius:6px; font-size:14px;
+         font-weight:bold; cursor:pointer; transition:background .15s; }
+  .btn-purple { background:#8800aa; color:#fff; }
+  .btn-purple:hover { background:#aa00cc; }
+  .btn-green  { background:#00aa55; color:#fff; }
+  .btn-green:hover  { background:#00cc66; }
+  .btn-red    { background:#aa2200; color:#fff; }
+  .btn-red:hover { background:#cc2200; }
+  .btn-sm { padding:6px 14px; font-size:12px; }
+  .msg { margin-top:10px; font-size:13px; min-height:18px; }
+  .msg.ok  { color:#00ff88; }
+  .msg.err { color:#ff4444; }
+
+  /* ── Tables ── */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; padding:10px 12px; color:#555; font-weight:normal;
+       border-bottom:1px solid #1a1a1a; font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
+  td { padding:10px 12px; border-bottom:1px solid #111; color:#ccc; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:#0d0d0d; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:bold; }
+  .badge-pending { background:#332200; color:#ff8800; }
+  .badge-confirmed { background:#002211; color:#00ff88; }
+
+  .empty { color:#444; text-align:center; padding:40px; font-size:14px; }
+  .total-row { background:#0d0d0d; font-weight:bold; }
+  .total-row td { color:#fff; border-top:2px solid #222; }
+
+  /* ── Refresh ── */
+  .refresh-btn { background:none; border:1px solid #333; color:#666; padding:6px 14px;
+                 border-radius:6px; cursor:pointer; font-size:12px; }
+  .refresh-btn:hover { border-color:#666; color:#ccc; }
+</style>
+</head>
+<body>
+
+<!-- ─── LOGIN ─────────────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🕷 The Latrodectus</h1>
+    <p>Admin Dashboard — authorized access only</p>
+    <label>Username</label>
+    <input type="text" id="l-user" placeholder="UniqCloth" autocapitalize="none" />
+    <label>Password</label>
+    <input type="password" id="l-pass" placeholder="••••••••" />
+    <button onclick="adminLogin()">Sign In</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ─── DASHBOARD ─────────────────────────────────────────────────────────── -->
+<div id="dashboard">
+  <div class="topbar">
+    <h1>🕷 Admin Dashboard</h1>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <span id="admin-greeting">Welcome</span>
+      <button onclick="adminLogout()">Sign Out</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('wallet',this)">💰 House Wallet</div>
+    <div class="tab" onclick="showTab('players',this)">📋 Player Withdrawals</div>
+    <div class="tab" onclick="showTab('pending',this)">⏳ Pending Approvals</div>
+  </div>
+
+  <!-- ── WALLET TAB ── -->
+  <div id="tab-wallet" class="content">
+    <div class="card">
+      <h2>House Wallet — Accumulated Profit</h2>
+      <div class="stat-big" id="house-balance">$-.--</div>
+      <div class="stat-sub">USDT available for withdrawal</div>
+
+      <div class="withdraw-row" style="margin-top:24px;">
+        <input type="text" id="w-addr" placeholder="0xYourEthereumAddress…" style="flex:2;" />
+        <input type="number" id="w-amt" class="amt-input" placeholder="Amount USDT" min="1" step="1" />
+        <button class="btn btn-purple" onclick="adminWithdraw()">Withdraw to Wallet</button>
+      </div>
+      <div class="msg" id="w-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Today's Summary</h2>
+      <div class="card-row">
+        <div class="card-sm">
+          <div class="label">Total Wagered Today</div>
+          <div class="value orange" id="today-wagered">$-.--</div>
+        </div>
+        <div class="card-sm">
+          <div class="label">Total Paid Out Today</div>
+          <div class="value green" id="today-paid">$-.--</div>
+        </div>
+        <div class="card-sm">
+          <div class="label">House Profit Today</div>
+          <div class="value purple" id="today-profit">$-.--</div>
+        </div>
+        <div class="card-sm">
+          <div class="label">Rounds Today</div>
+          <div class="value" id="today-rounds">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PLAYER WITHDRAWALS TAB ── -->
+  <div id="tab-players" class="content" style="display:none;">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="margin:0;">Player Withdrawal History</h2>
+        <button class="refresh-btn" onclick="loadPlayerWithdrawals()">↻ Refresh</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Amount Requested</th>
+            <th>Amount Sent</th>
+            <th>Fee</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Tx Hash</th>
+          </tr>
+        </thead>
+        <tbody id="player-withdrawals-body">
+          <tr><td colspan="7" class="empty">Loading…</td></tr>
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td>TOTAL SENT TO PLAYERS</td>
+            <td id="total-requested">—</td>
+            <td id="total-sent">—</td>
+            <td></td><td></td><td></td><td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── PENDING APPROVALS TAB ── -->
+  <div id="tab-pending" class="content" style="display:none;">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="margin:0;">Pending Withdrawal Requests</h2>
+        <button class="refresh-btn" onclick="loadPendingQueue()">↻ Refresh</button>
+      </div>
+      <p style="font-size:12px;color:#555;margin-bottom:16px;">
+        Review each request carefully before approving. Once approved, USDT is sent from the house wallet to the player's address. This cannot be undone.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Player ID</th>
+            <th>Amount Requested</th>
+            <th>Amount They Receive</th>
+            <th>Destination Address</th>
+            <th>Submitted</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="pending-body">
+          <tr><td colspan="7" class="empty">No pending withdrawals</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const SERVER = window.location.origin;
+let TOKEN = localStorage.getItem('admin_token') || null;
+
+// ─── Auth ──────────────────────────────────────────────────────────────────
+
+async function adminLogin() {
+  const user = document.getElementById('l-user').value.trim();
+  const pass = document.getElementById('l-pass').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+
+  try {
+    const res  = await fetch(`${SERVER}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user, password: pass }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.isAdmin) {
+      errEl.textContent = data.error || 'Access denied — admin account required';
+      return;
+    }
+    TOKEN = data.token;
+    localStorage.setItem('admin_token', TOKEN);
+    showDashboard(data.username);
+  } catch {
+    errEl.textContent = 'Server error — try again';
+  }
+}
+
+function adminLogout() {
+  TOKEN = null;
+  localStorage.removeItem('admin_token');
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showDashboard(username) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('admin-greeting').textContent = `Logged in as ${username}`;
+  loadWalletTab();
+}
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN}` };
+}
+
+// ─── Tab switching ─────────────────────────────────────────────────────────
+
+function showTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-wallet').style.display  = name === 'wallet'  ? 'block' : 'none';
+  document.getElementById('tab-players').style.display = name === 'players' ? 'block' : 'none';
+  document.getElementById('tab-pending').style.display = name === 'pending' ? 'block' : 'none';
+
+  if (name === 'wallet')  loadWalletTab();
+  if (name === 'players') loadPlayerWithdrawals();
+  if (name === 'pending') loadPendingQueue();
+}
+
+// ─── Wallet Tab ────────────────────────────────────────────────────────────
+
+async function loadWalletTab() {
+  try {
+    const [balRes, statsRes] = await Promise.all([
+      fetch(`${SERVER}/admin/balance`, { headers: authHeaders() }),
+      fetch(`${SERVER}/admin/stats`,   { headers: authHeaders() }),
+    ]);
+    if (balRes.status === 401 || balRes.status === 403) { adminLogout(); return; }
+
+    const bal   = await balRes.json();
+    const stats = statsRes.ok ? await statsRes.json() : {};
+
+    document.getElementById('house-balance').textContent = `$${(bal.balance || 0).toFixed(2)}`;
+    document.getElementById('today-wagered').textContent = `$${(stats.todayWagered || 0).toFixed(2)}`;
+    document.getElementById('today-paid').textContent    = `$${(stats.todayPaid    || 0).toFixed(2)}`;
+    document.getElementById('today-profit').textContent  = `$${(stats.todayProfit  || 0).toFixed(2)}`;
+    document.getElementById('today-rounds').textContent  = stats.todayRounds || '0';
+  } catch (e) {
+    document.getElementById('house-balance').textContent = 'Error loading';
+  }
+}
+
+async function adminWithdraw() {
+  const addr = document.getElementById('w-addr').value.trim();
+  const amt  = parseFloat(document.getElementById('w-amt').value);
+  const msg  = document.getElementById('w-msg');
+  msg.className = 'msg';
+  msg.textContent = '';
+
+  if (!addr || !addr.startsWith('0x') || addr.length !== 42) {
+    msg.className = 'msg err'; msg.textContent = 'Enter a valid Ethereum address (0x + 40 hex chars)'; return;
+  }
+  if (!amt || amt <= 0) {
+    msg.className = 'msg err'; msg.textContent = 'Enter a valid amount'; return;
+  }
+  if (!confirm(`Withdraw $${amt.toFixed(2)} USDT to ${addr}?\n\nThis will be sent immediately from the house wallet.`)) return;
+
+  msg.textContent = 'Processing…';
+  try {
+    const res  = await fetch(`${SERVER}/admin/withdraw`, {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ toAddress: addr, amount: amt }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.className = 'msg ok';
+      msg.textContent = `✓ Sent $${amt.toFixed(2)} USDT${data.mock ? ' (MOCK)' : ''} — Tx: ${(data.txid||'').slice(0,24)}…`;
+      loadWalletTab();
+    } else {
+      msg.className = 'msg err'; msg.textContent = `✗ ${data.error}`;
+    }
+  } catch {
+    msg.className = 'msg err'; msg.textContent = 'Server error — try again';
+  }
+}
+
+// ─── Player Withdrawals Tab ────────────────────────────────────────────────
+
+async function loadPlayerWithdrawals() {
+  const tbody = document.getElementById('player-withdrawals-body');
+  tbody.innerHTML = '<tr><td colspan="7" class="empty">Loading…</td></tr>';
+  try {
+    const res  = await fetch(`${SERVER}/admin/player-withdrawals`, { headers: authHeaders() });
+    const rows = await res.json();
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">No player withdrawals yet</td></tr>';
+      document.getElementById('total-requested').textContent = '$0.00';
+      document.getElementById('total-sent').textContent = '$0.00';
+      return;
+    }
+
+    let totalRequested = 0, totalSent = 0;
+    tbody.innerHTML = rows.map(r => {
+      const amt = parseFloat(r.amount);
+      const fee = 5;
+      const sent = Math.max(0, amt - fee);
+      totalRequested += amt;
+      totalSent += sent;
+      const date = new Date(r.created_at).toLocaleDateString();
+      const txShort = r.txid ? r.txid.slice(0,14)+'…' : '—';
+      const badgeCls = r.status === 'confirmed' ? 'badge-confirmed' : 'badge-pending';
+      return `<tr>
+        <td>${r.username || r.player_id || '—'}</td>
+        <td>$${amt.toFixed(2)}</td>
+        <td>$${sent.toFixed(2)}</td>
+        <td>$${fee.toFixed(2)}</td>
+        <td><span class="badge ${badgeCls}">${r.status}</span></td>
+        <td>${date}</td>
+        <td><span title="${r.txid||''}">${txShort}</span></td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('total-requested').textContent = `$${totalRequested.toFixed(2)}`;
+    document.getElementById('total-sent').textContent = `$${totalSent.toFixed(2)}`;
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load — check server</td></tr>';
+  }
+}
+
+// ─── Pending Approvals Tab ─────────────────────────────────────────────────
+
+async function loadPendingQueue() {
+  const tbody = document.getElementById('pending-body');
+  tbody.innerHTML = '<tr><td colspan="7" class="empty">Loading…</td></tr>';
+  try {
+    const res   = await fetch(`${SERVER}/admin/withdrawal-queue`, { headers: authHeaders() });
+    const queue = await res.json();
+
+    if (!queue.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">✓ No pending withdrawal requests</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = queue.map((item, i) => {
+      const date = new Date(item.ts).toLocaleString();
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${item.playerId || '—'}</td>
+        <td>$${item.amount.toFixed(2)} USDT</td>
+        <td>$${item.netAmount.toFixed(2)} USDT</td>
+        <td style="font-family:monospace;font-size:11px;">${item.toAddress}</td>
+        <td>${date}</td>
+        <td>
+          <button class="btn btn-green btn-sm" onclick="approveWithdrawal(${i})">✓ Approve</button>
+          &nbsp;
+          <button class="btn btn-red btn-sm" onclick="rejectWithdrawal(${i})">✗ Reject</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load</td></tr>';
+  }
+}
+
+async function approveWithdrawal(index) {
+  if (!confirm('Approve this withdrawal? USDT will be sent immediately.')) return;
+  try {
+    const res  = await fetch(`${SERVER}/admin/withdrawal-queue/${index}/approve`, {
+      method: 'POST', headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert(`✓ Sent! Tx: ${data.txid?.slice(0,24)}…`);
+    } else {
+      alert(`✗ Failed: ${data.error}`);
+    }
+    loadPendingQueue();
+  } catch {
+    alert('Server error — try again');
+  }
+}
+
+async function rejectWithdrawal(index) {
+  if (!confirm('Reject and remove this withdrawal request? The player\'s balance will NOT be refunded automatically — you must handle that manually.')) return;
+  try {
+    await fetch(`${SERVER}/admin/withdrawal-queue/${index}/reject`, {
+      method: 'POST', headers: authHeaders(),
+    });
+    loadPendingQueue();
+  } catch {
+    alert('Server error');
+  }
+}
+
+// ─── Auto-login if token exists ────────────────────────────────────────────
+if (TOKEN) {
+  // Verify token is still valid by loading balance
+  fetch(`${SERVER}/admin/balance`, { headers: authHeaders() }).then(r => {
+    if (r.ok) {
+      const pay = JSON.parse(atob(TOKEN.split('.')[1]));
+      showDashboard(pay.username || 'Admin');
+    } else {
+      localStorage.removeItem('admin_token');
+      TOKEN = null;
+    }
+  }).catch(() => {});
+}
+
+// Enter key on login
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') {
+    adminLogin();
+  }
+});
+</script>
+</body>
+</html>

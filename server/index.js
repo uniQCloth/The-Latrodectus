@@ -12,6 +12,7 @@ const provablyFair = require('./game/ProvablyFair');
 const tron = require('./payments/TronService');
 const depositVerifier = require('./payments/DepositVerifier');
 const withdrawalProcessor = require('./payments/WithdrawalProcessor');
+const houseAccount = require('./payments/HouseAccount');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'wsm-dev-secret-change-in-prod';
 const BCRYPT_ROUNDS = 10;
@@ -139,8 +140,9 @@ app.post('/auth/login', async (req, res) => {
       usernameRegistry.set(player.username.toLowerCase(), player.uuid);
     }
 
-    const token = signToken({ uuid: player.uuid, username: player.username, playerId: player.id });
-    return res.json({ token, username: player.username });
+    const isAdmin = player.is_admin || false;
+    const token = signToken({ uuid: player.uuid, username: player.username, playerId: player.id, isAdmin });
+    return res.json({ token, username: player.username, isAdmin });
   } else {
     // In-memory: look up by email or scan by username
     let user = isEmail
@@ -151,8 +153,8 @@ app.post('/auth/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) return res.status(401).json({ error: 'Incorrect password' });
 
-    const token = signToken({ uuid: user.uuid, username: user.username });
-    return res.json({ token, username: user.username });
+    const token = signToken({ uuid: user.uuid, username: user.username, isAdmin: user.isAdmin || false });
+    return res.json({ token, username: user.username, isAdmin: user.isAdmin || false });
   }
 });
 
@@ -200,19 +202,121 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ── Admin Endpoints ────────────────────────────────────────────────────────
+
+function requireAdmin(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  const user = verifyToken(auth.slice(7));
+  if (!user?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+  req.adminUser = user;
+  next();
+}
+
+// Serve admin dashboard HTML
+app.use('/admin', express.static(require('path').join(__dirname, 'admin')));
+
+// Admin: view accumulated house profit balance
+app.get('/admin/balance', requireAdmin, async (req, res) => {
+  const balance = await houseAccount.getBalance();
+  res.json({ balance, currency: 'USDT' });
+});
+
+// Admin: today's round stats
+app.get('/admin/stats', requireAdmin, async (req, res) => {
+  if (!db.isEnabled()) return res.json({ todayWagered: 0, todayPaid: 0, todayProfit: 0, todayRounds: 0 });
+  try {
+    const result = await db.query(`
+      SELECT
+        COALESCE(SUM(total_wagered),0) AS wagered,
+        COALESCE(SUM(total_paid),0)    AS paid,
+        COUNT(*)                       AS rounds
+      FROM rounds
+      WHERE created_at >= CURRENT_DATE
+    `);
+    const row = result?.rows?.[0] || {};
+    const wagered = parseFloat(row.wagered || 0);
+    const paid    = parseFloat(row.paid    || 0);
+    res.json({
+      todayWagered: wagered,
+      todayPaid:    paid,
+      todayProfit:  parseFloat((wagered - paid).toFixed(2)),
+      todayRounds:  parseInt(row.rounds || 0),
+    });
+  } catch (err) {
+    res.json({ todayWagered: 0, todayPaid: 0, todayProfit: 0, todayRounds: 0 });
+  }
+});
+
+// Admin: all player withdrawals with username
+app.get('/admin/player-withdrawals', requireAdmin, async (req, res) => {
+  if (!db.isEnabled()) return res.json([]);
+  try {
+    const result = await db.query(`
+      SELECT p.username, t.amount, t.txid, t.status, t.destination_address, t.created_at, t.player_id
+      FROM transactions t
+      LEFT JOIN players p ON p.id = t.player_id
+      WHERE t.type = 'withdrawal'
+        AND (p.is_admin IS NULL OR p.is_admin = FALSE)
+      ORDER BY t.created_at DESC
+      LIMIT 200
+    `);
+    res.json(result?.rows || []);
+  } catch {
+    res.json([]);
+  }
+});
+
+// Admin: withdraw house profit to personal wallet — no $5 fee, higher limits
+app.post('/admin/withdraw', requireAdmin, async (req, res) => {
+  const { toAddress, amount } = req.body;
+  const amt = parseFloat(amount);
+
+  if (!toAddress) return res.status(400).json({ error: 'toAddress required' });
+  if (!tron.isValidAddress(toAddress)) return res.status(400).json({ error: 'Invalid Ethereum address' });
+  if (isNaN(amt) || amt <= 0) return res.status(400).json({ error: 'Amount must be greater than 0' });
+
+  const currentBalance = await houseAccount.getBalance();
+  if (amt > currentBalance) {
+    return res.status(400).json({ error: `Insufficient house balance ($${currentBalance.toFixed(2)} USDT available)` });
+  }
+
+  await houseAccount.deductBalance(amt);
+
+  if (db.isEnabled()) {
+    await db.query(
+      `INSERT INTO transactions (player_id, type, amount, destination_address, status)
+       SELECT id, 'withdrawal', $2, $3, 'pending' FROM players WHERE is_admin = TRUE LIMIT 1`,
+      [null, amt, toAddress]
+    ).catch(() => {}); // non-fatal
+  }
+
+  const sendResult = await tron.sendUSDT(toAddress, amt);
+
+  if (!sendResult.ok) {
+    // Refund balance on failure
+    await houseAccount.addProfit(amt);
+    return res.status(500).json({ error: sendResult.error });
+  }
+
+  console.log(`[Admin Withdrawal] $${amt} USDT → ${toAddress} | txHash: ${sendResult.txid}`);
+  res.json({ ok: true, txid: sendResult.txid, amount: amt, newBalance: currentBalance - amt, mock: sendResult.mock });
+});
+
 // ── Payment REST Endpoints ─────────────────────────────────────────────────
 
-// Get deposit info (house address + mock mode status)
+// Get deposit info — returns house address players send USDT-ERC20 to
 app.get('/payment/deposit-info', (req, res) => {
   res.json({
     houseAddress: tron.getHouseAddress(),
-    network: process.env.TRON_NETWORK || 'testnet',
-    token: 'USDT-TRC20',
+    network: process.env.ETH_NETWORK || 'mainnet',
+    token: 'USDT-ERC20',
+    chain: 'Ethereum',
     minDeposit: 1,
     maxDeposit: 5000,
     mock: tron.isMockMode(),
     mockNote: tron.isMockMode()
-      ? 'MOCK MODE: Submit any 64-char hex as txid — balance will be credited instantly'
+      ? 'MOCK MODE: Submit any txHash — balance will be credited instantly for testing'
       : null,
   });
 });
@@ -294,14 +398,22 @@ app.get('/payment/history/:socketId', async (req, res) => {
   res.json(result?.rows || []);
 });
 
-// Admin: manual review queue (protect with auth in production)
-app.get('/admin/withdrawal-queue', (req, res) => {
+// Admin: manual review queue — pending withdrawals awaiting approval
+app.get('/admin/withdrawal-queue', requireAdmin, (req, res) => {
   res.json(withdrawalProcessor.getQueue());
 });
 
-app.post('/admin/withdrawal-queue/:index/approve', async (req, res) => {
+app.post('/admin/withdrawal-queue/:index/approve', requireAdmin, async (req, res) => {
   const result = await withdrawalProcessor.approveQueued(parseInt(req.params.index));
   res.json(result);
+});
+
+app.post('/admin/withdrawal-queue/:index/reject', requireAdmin, (req, res) => {
+  const idx   = parseInt(req.params.index);
+  const queue = withdrawalProcessor.getQueue();
+  if (!queue[idx]) return res.status(404).json({ ok: false, error: 'Not found' });
+  queue.splice(idx, 1);
+  res.json({ ok: true });
 });
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
@@ -516,9 +628,41 @@ io.on('connection', async (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
+// Seed admin account on startup — uses ADMIN_EMAIL / ADMIN_PASSWORD from env
+async function seedAdminAccount() {
+  const adminEmail    = (process.env.ADMIN_EMAIL    || 'admin@latrodectus.internal').toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD  || '0515Bf$';
+  const adminUsername = process.env.ADMIN_USERNAME  || 'UniqCloth';
+
+  if (db.isEnabled()) {
+    const existing = await db.query('SELECT id FROM players WHERE is_admin = TRUE LIMIT 1');
+    if (!existing?.rows?.length) {
+      const hash = await bcrypt.hash(adminPassword, BCRYPT_ROUNDS);
+      await db.query(
+        `INSERT INTO players (email, password_hash, username, balance, is_admin)
+         VALUES ($1, $2, $3, 0, TRUE) ON CONFLICT (email) DO NOTHING`,
+        [adminEmail, hash, adminUsername]
+      );
+      houseAccount.invalidateCache();
+      console.log(`[Admin] Account seeded — email: ${adminEmail}`);
+    }
+  } else {
+    // In-memory fallback
+    if (!memAuthStore.has(adminEmail)) {
+      const hash = await bcrypt.hash(adminPassword, BCRYPT_ROUNDS);
+      memAuthStore.set(adminEmail, {
+        uuid: generateUUID(), username: adminUsername,
+        passwordHash: hash, balance: 0, isAdmin: true,
+      });
+      console.log(`[Admin] In-memory account seeded — email: ${adminEmail}`);
+    }
+  }
+}
+
 (async () => {
   await db.init(); // waits for schema to apply before accepting traffic
   if (db.isEnabled()) seedUsernameRegistry();
+  await seedAdminAccount();
 
   server.listen(PORT, () => {
     console.log(`\n🕷  The Latrodectus — port ${PORT}`);

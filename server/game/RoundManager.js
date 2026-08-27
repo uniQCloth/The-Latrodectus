@@ -2,6 +2,7 @@ const provablyFair = require('./ProvablyFair');
 const MultiplierEngine = require('./MultiplierEngine');
 const db = require('../db/db');
 const queries = require('../db/queries');
+const houseAccount = require('../payments/HouseAccount');
 
 const STATES = { BETTING: 'betting', PLAYING: 'playing', RESULT: 'result' };
 const BETTING_DURATION = 10000; // 10s lobby
@@ -249,6 +250,10 @@ class RoundManager {
         }
       }
     });
+
+    // Credit house profit — lost bets accumulate in admin wallet, no on-chain tx per round
+    const houseProfit = parseFloat((totalWagered - totalPaid).toFixed(2));
+    if (houseProfit > 0) houseAccount.addProfit(houseProfit);
 
     // Close round in DB
     if (db.isEnabled()) {

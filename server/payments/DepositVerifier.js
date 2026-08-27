@@ -2,7 +2,7 @@ const tron = require('./TronService');
 const db = require('../db/db');
 const queries = require('../db/queries');
 
-const MIN_DEPOSIT = 1;    // USDT
+const MIN_DEPOSIT = 10;   // USDT — minimum deposit (Ethereum ERC-20 USDT only)
 const MAX_DEPOSIT = 5000; // USDT
 
 class DepositVerifier {
