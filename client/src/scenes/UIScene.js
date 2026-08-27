@@ -275,7 +275,7 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Top-5 HUD ─────────────────────────────────────────────────────────
     const hudX = width - 8;
-    const hudStartY = 56;
+    const hudStartY = 86;
     const hudW = 148;
 
     this.add.text(hudX - 4, hudStartY, '🏆 TOP 5', {
