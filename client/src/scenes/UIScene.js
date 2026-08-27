@@ -278,8 +278,6 @@ export default class UIScene extends Phaser.Scene {
     const hudStartY = 56;
     const hudW = 148;
 
-    this._top5Bg = this.add.rectangle(hudX - hudW / 2, hudStartY + 54, hudW, 108, 0x000000, 0.52)
-      .setScrollFactor(0).setDepth(10);
     this.add.text(hudX - 4, hudStartY, '🏆 TOP 5', {
       fontSize: '8px', color: '#ffd700', fontFamily: 'Arial Black, sans-serif',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);

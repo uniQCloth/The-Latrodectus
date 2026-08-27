@@ -1380,7 +1380,7 @@ export default class GameScene extends Phaser.Scene {
         backgroundColor: '#00000099', padding: { x: 14, y: 6 },
       }).setOrigin(0.5).setScrollFactor(0).setDepth(19).setAlpha(0);
 
-    const sub = this.add.text(width / 2, height * 0.22,
+    const sub = this.add.text(width / 2, height * 0.19,
       'Rising water detected in pipe…', {
         fontSize: '13px', fontFamily: 'Arial, sans-serif',
         color: '#ffbb44', stroke: '#000000', strokeThickness: 3,
@@ -1839,11 +1839,12 @@ export default class GameScene extends Phaser.Scene {
   autoClimbStep() {
     if (!this.serverMode || !this.spider.isAlive) return;
     const body = this.spider.getBody();
-    const { width, height } = this.scale;
+    const { height } = this.scale;
     const targetY = this.groundY - (this.serverTiles + Math.floor(this._magicTileBonus)) * 10;
     const newY = Phaser.Math.Linear(body.y, targetY, 0.3);
-    body.setPosition(width / 2, newY);
-    body.setVelocity(0, 0);
+    // Only update Y — player controls horizontal swing, server controls climb height
+    body.setPosition(body.x, newY);
+    body.setVelocityY(0);
     this.cameras.main.scrollY = body.y - height / 2;
   }
 

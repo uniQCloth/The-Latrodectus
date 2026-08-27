@@ -8,7 +8,7 @@ const SLIDES = [
   },
   {
     title: 'STEP 1 — PLACE YOUR BET',
-    caption: 'Set your bet amount and tap BET before the countdown runs out.',
+    caption: 'Set your bet amount and tap BET before the countdown runs out.\n\n💡 Swing the spider into the pipe walls to collect glow worms — each worm boosts your multiplier!',
     draw: '_drawBetSlide',
   },
   {
