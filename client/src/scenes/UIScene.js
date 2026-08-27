@@ -556,6 +556,7 @@ export default class UIScene extends Phaser.Scene {
     socket.on('round:start', () => {
       this.state = STATES.PLAYING;
       this.enterPlayingUI();
+      sound.startGameBeat(); // "Drain Pulse" — dark 120 BPM A-minor beat during round
     });
 
     socket.on('round:tick', ({ multiplier, tiles, crashed }) => {
@@ -573,6 +574,7 @@ export default class UIScene extends Phaser.Scene {
 
     socket.on('round:crashed', ({ crashPoint, secretSeed, roundId }) => {
       this.state = STATES.RESULT;
+      sound.stopGameBeat(0.8); // stop beat fast on crash — silence before the flood sound
       this.enterResultUI(crashPoint, secretSeed, roundId);
       // Update history bar immediately — don't wait for server history:update
       this._localHistory.unshift({ crashPoint });
@@ -1043,6 +1045,7 @@ export default class UIScene extends Phaser.Scene {
   shutdown() {
     socket.clearListeners();
     sound.stopBgMusic();
+    sound.stopGameBeat();
     stopIdleWatch();
   }
 

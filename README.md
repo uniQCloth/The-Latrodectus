@@ -191,12 +191,48 @@ sudo nginx -t && sudo systemctl reload nginx
 
 See [CHANGELOG.md](./CHANGELOG.md) for full history.
 
-**Latest updates:**
+**v0.9 — August 2026 (current):**
+
+### Added
+- **Gameplay beat — "Drain Pulse"** (`SoundManager.js → startGameBeat()`)
+  Dark electronic loop at 120 BPM in A natural minor. Plays only during active rounds (wired to `round:start` / `round:crashed` in `UIScene.js`). Instruments: filtered sawtooth bass, eerie triangle melody, kick/snare/hi-hat pattern, rare metallic drip ping shimmer. Fades in over 1.8 s on round start; cuts in 0.8 s on crash to leave silence before the flood sound hits.
+- **Pipe burst visual effects** (`GameScene.js → triggerServerFlood()`)
+  Three layered effects fire together when the pipe bursts:
+  1. *Double shake* — 300 ms jolt at 0.014 intensity followed 80 ms later by a heavier 600 ms shake at 0.026.
+  2. *Wall crack flash* — two 6 px white strips light up the inner edge of both pipe walls, alpha-tweened out in 180 ms.
+  3. *Water spray droplets* — 20 blue/white circles (radius 1.5–3.5 px) eject inward from both walls with randomised velocities, fading as they fly (380–700 ms).
+- **Glow worm incoming warning** (`GameScene.js → _spawnMagicGlowWorm()`)
+  A red "⚠ GLOW WORM INCOMING" banner appears at top-center for 2.5 s before the worm actually spawns. The worm drops from a random X position so the player knows it's coming but not where.
+- **Login accepts email OR username** (`UsernameScene.js` + `server/index.js` + `server/db/queries.js`)
+  Login field type changed from `email` to `text`; label reads "EMAIL OR USERNAME"; `autocapitalize="none"` and `autocorrect="off"` added to all inputs. Server `/auth/login` checks for `@` to decide whether to query by email or by username. `getPlayerByUsername` upgraded to `SELECT *` so the password hash is returned correctly.
+
+### Fixed
+- **Spider couldn't swing during live rounds** (`GameScene.js → update()`)
+  In server mode, `autoClimbStep()` ran every frame but `spider.update()` (which reads keyboard/touch input) was never called. One line added after `autoClimbStep()`: `if (this.spider?.isAlive) this.spider.update();`
+- **Water appeared near the spider mid-round** (`GameScene.js`)
+  Water floor was calculated dynamically as `height / 2 + safeGap` and could shrink to 18 px from spider level. Changed to a fixed `height * 0.75` — water stays in the bottom 25 % of the screen and only rises to the spider when the pipe actually bursts.
+- **Jump removed** (`Spider.js`)
+  Jump button, center touch zone, jump velocity, and bounce-platform jump boost all removed. Left touch zone now covers the full left 50 % of screen; right zone covers the full right 50 %. Swing speed is always 160 px/s in both directions.
+- **Background music simplified** (`SoundManager.js → startBgMusic()`)
+  Melodic A-minor drip sequence (`_melodyInterval`) removed from gameplay ambience. Remaining ambient layers: deep pipe drone (40/55/110 Hz with LFO), continuous distant water rush (looped bandpass noise), random hollow drips at irregular intervals, slow deep accent drips every 4 beats.
+- **Top 5 leaderboard positioning** (`UIScene.js`)
+  `hudStartY` moved from `56` to `86` px — leaderboard now sits below the round-history multiplier bar instead of overlapping it.
+- **mute button now covers game beat** (`SoundManager.js → setBgMusicMute()`)
+  `setBgMusicMute` updated to also ramp `_gameBeatGain` when toggling mute, so the gameplay beat respects the mute button alongside the ambient layer.
+
+### Renamed / Infrastructure
+- GitHub repository renamed from `the-latrodectus` → **`The-Latrodectus`**
+- Neon project renamed to `the-latrodectus`; Render service display name updated
+- Server console log updated to `The Latrodectus — port ${PORT}`
+
+---
+
+**v0.8 and earlier:**
 - Cinematic intro: spider descends on silk, water rises, PIPE BURST sequence
 - Replaced jarring blue-screen crash with rising-water surge + shake + banner
 - Spider pendulum swing mechanic (purely visual, left/right movement)
 - Grey pipe interior, brightened walls
-- Original "Climbing Spider" theme music (digital A-minor beat)
+- Original "Climbing Spider" theme music (digital A-minor beat) — plays on intro/menu
 - Hollow pipe drip ambience (procedural WebAudio)
 - Persistent rising water that tracks multiplier speed
 - Always-require-login (no auto session skip)

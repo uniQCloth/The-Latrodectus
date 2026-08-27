@@ -351,10 +351,195 @@ export default class SoundManager {
   }
 
   setBgMusicMute(muted) {
-    if (!this._bgGain || !this._ctx) return;
+    if (!this._ctx) return;
     const now = this._ctx.currentTime;
-    this._bgGain.gain.setValueAtTime(this._bgGain.gain.value, now);
-    this._bgGain.gain.linearRampToValueAtTime(muted ? 0 : 0.20, now + 0.3);
+    if (this._bgGain) {
+      this._bgGain.gain.setValueAtTime(this._bgGain.gain.value, now);
+      this._bgGain.gain.linearRampToValueAtTime(muted ? 0 : 0.20, now + 0.3);
+    }
+    if (this._gameBeatGain) {
+      this._gameBeatGain.gain.setValueAtTime(this._gameBeatGain.gain.value, now);
+      this._gameBeatGain.gain.linearRampToValueAtTime(muted ? 0 : 0.30, now + 0.3);
+    }
+  }
+
+  // ── Gameplay Beat ────────────────────────────────────────────────────────
+  // "Drain Pulse" — dark electronic loop (120 BPM, A natural minor).
+  // Plays only during active rounds; ambient water bg continues underneath.
+  // Instruments: filtered sawtooth bass, triangle melody, kick/snare/hat,
+  // metallic drip ping (rare shimmer, like drops striking pipe metal).
+  startGameBeat() {
+    if (!this._ctx || this._gameBeatRunning) return;
+    this._resume();
+    this._gameBeatRunning = true;
+
+    const ctx = this._ctx;
+    const BPM = 120;
+    const eighth = 60 / BPM / 2; // 0.25 s per eighth note
+
+    // Dedicated gain bus — fades in over 1.8 s, routes to output
+    const beatGain = ctx.createGain();
+    beatGain.gain.setValueAtTime(0, ctx.currentTime);
+    beatGain.gain.linearRampToValueAtTime(0.30, ctx.currentTime + 1.8);
+    beatGain.connect(ctx.destination);
+    this._gameBeatGain = beatGain;
+    this._gameBeatOscs = [];
+
+    // Constant sub-bass on A1 (55 Hz) — ominous low pressure hum
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.value = 55;
+    const subG = ctx.createGain();
+    subG.gain.value = 0.30;
+    sub.connect(subG); subG.connect(beatGain);
+    sub.start();
+    this._gameBeatOscs.push(sub);
+
+    // 4-bar, 32-step (eighth-note) melody loop in A natural minor
+    // Bar 1: stepwise climb — urgency building
+    // Bar 2: dip to root — something lurking below
+    // Bar 3: rises higher — tension peak
+    // Bar 4: resolves — breathe before the loop repeats
+    const MEL = [
+      329.6, 0,     0,     293.7, 0,     261.6, 0,     0,
+      220.0, 0,     261.6, 0,     0,     246.9, 0,     0,
+      329.6, 0,     0,     349.2, 329.6, 293.7, 0,     0,
+      261.6, 0,     0,     0,     220.0, 0,     0,     0,
+    ];
+
+    // Quarter-note bass line — 16 chords across 4 bars
+    const BASS = [
+      110.0, 110.0, 82.4,  82.4,   // Bar 1: A2 A2 E2 E2
+      110.0, 98.0,  87.3,  82.4,   // Bar 2: A2 G2 F2 E2
+      110.0, 110.0, 130.8, 123.5,  // Bar 3: A2 A2 C3 B2
+      110.0, 110.0, 82.4,  110.0,  // Bar 4: A2 A2 E2 A2
+    ];
+
+    const total = MEL.length;
+    let step = 0;
+
+    // Kick — sine sweep from 90 Hz down to sub, tight punch
+    const kick = (at) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(90, at);
+      o.frequency.exponentialRampToValueAtTime(28, at + 0.11);
+      g.gain.setValueAtTime(0.60, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.15);
+      o.connect(g); g.connect(beatGain);
+      o.start(at); o.stop(at + 0.17);
+    };
+
+    // Snare — bandpass noise + triangle body crack
+    const snare = (at) => {
+      const len = Math.ceil(ctx.sampleRate * 0.11);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 0.7;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.20, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.11);
+      src.connect(bp); bp.connect(g); g.connect(beatGain);
+      src.start(at); src.stop(at + 0.12);
+      const body = ctx.createOscillator();
+      body.type = 'triangle'; body.frequency.value = 190;
+      const bg = ctx.createGain();
+      bg.gain.setValueAtTime(0.12, at);
+      bg.gain.exponentialRampToValueAtTime(0.001, at + 0.07);
+      body.connect(bg); bg.connect(beatGain);
+      body.start(at); body.stop(at + 0.08);
+    };
+
+    // Hi-hat — tight highpass noise transient, louder on the beat
+    const hat = (at, vol = 0.07) => {
+      const len = Math.ceil(ctx.sampleRate * 0.022);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass'; hp.frequency.value = 9500;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(vol, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.022);
+      src.connect(hp); hp.connect(g); g.connect(beatGain);
+      src.start(at); src.stop(at + 0.025);
+    };
+
+    // Metallic drip ping — rare high shimmer, water striking pipe metal
+    const dripPing = (at) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(2200 + Math.random() * 800, at);
+      g.gain.setValueAtTime(0.06, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.18);
+      o.connect(g); g.connect(beatGain);
+      o.start(at); o.stop(at + 0.20);
+    };
+
+    const tick = () => {
+      if (!this._gameBeatRunning) return;
+      const now = ctx.currentTime;
+      const s    = step % total;
+      const beat = s % 8; // position within bar (0-7 eighth notes)
+
+      // Triangle melody — warmer than chiptune square, feels organic/eerie
+      const freq = MEL[s];
+      if (freq > 0) {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(freq, now);
+        g.gain.setValueAtTime(0.13, now);
+        g.gain.setValueAtTime(0.13, now + eighth * 0.55);
+        g.gain.exponentialRampToValueAtTime(0.001, now + eighth * 0.90);
+        o.connect(g); g.connect(beatGain);
+        o.start(now); o.stop(now + eighth);
+      }
+
+      // Filtered sawtooth bass every quarter note (every 2 eighth steps)
+      if (beat % 2 === 0) {
+        const bf = BASS[Math.floor(s / 2)];
+        const o = ctx.createOscillator(); const lp = ctx.createBiquadFilter();
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(bf, now);
+        lp.type = 'lowpass'; lp.frequency.value = 380;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.24, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + eighth * 1.75);
+        o.connect(lp); lp.connect(g); g.connect(beatGain);
+        o.start(now); o.stop(now + eighth * 2);
+      }
+
+      // Drums: kick on 1 & 3 (beats 0, 4), snare on 2 & 4 (beats 2, 6)
+      if (beat === 0 || beat === 4) kick(now);
+      if (beat === 2 || beat === 6) snare(now);
+      hat(now, beat % 2 === 0 ? 0.09 : 0.04);
+      if (Math.random() < 0.06) dripPing(now); // ~6% chance per eighth note
+
+      step++;
+    };
+
+    this._gameBeatInterval = setInterval(tick, eighth * 1000);
+    tick(); // fire immediately on beat 1
+  }
+
+  stopGameBeat(fadeSecs = 1.5) {
+    if (!this._gameBeatRunning) return;
+    this._gameBeatRunning = false;
+    clearInterval(this._gameBeatInterval);
+    this._gameBeatInterval = null;
+    if (this._gameBeatGain && this._ctx) {
+      const now = this._ctx.currentTime;
+      this._gameBeatGain.gain.setValueAtTime(this._gameBeatGain.gain.value, now);
+      this._gameBeatGain.gain.linearRampToValueAtTime(0, now + fadeSecs);
+      setTimeout(() => {
+        this._gameBeatOscs?.forEach(o => { try { o.stop(); } catch {} });
+        this._gameBeatOscs = [];
+        this._gameBeatGain = null;
+      }, (fadeSecs + 0.2) * 1000);
+    }
   }
 
   // ── Cinematic intro music ────────────────────────────────────────────────
