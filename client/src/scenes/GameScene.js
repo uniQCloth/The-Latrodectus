@@ -1936,12 +1936,9 @@ export default class GameScene extends Phaser.Scene {
         riseRate = 600;
         floorY   = -200;
       } else {
-        // Normal: slow crawl that tightens with multiplier
-        // 1x → ~3px/s   10x → ~8px/s   50x → ~16px/s   100x → ~22px/s
+        // Normal: slow crawl — water always stays clearly below the spider
         riseRate = 2 + Math.pow(Math.min(mult, 150), 0.65) * 0.9;
-        // Safety gap keeps water just below spider until crash event
-        const safeGap = Math.max(18, 65 - Math.min(mult, 47));
-        floorY = height / 2 + safeGap;
+        floorY = height * 0.75; // water can never rise above bottom 25% of screen
       }
 
       this._waterSurfaceY = Math.max(floorY, this._waterSurfaceY - riseRate * delta / 1000);

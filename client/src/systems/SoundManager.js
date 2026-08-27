@@ -312,27 +312,9 @@ export default class SoundManager {
       eOsc.start(t + 0.16); eOsc.stop(t + 0.62);
     };
 
-    // ── Melodic drip sequence — A minor pentatonic, hypnotic pattern ──────
-    // Scale: A2 C3 D3 E3 G3 A3 C4 D4
-    const scale   = [220, 261.6, 293.7, 329.6, 392, 440, 523.3, 587.3];
-    // 16-step pattern — feels like water finding its rhythm
-    const pattern = [0, 2, 4, 3, 2, 0, 1, 3, 5, 4, 3, 1, 0, 4, 2, 0];
-    let step = 0;
-    const bpm    = 76;
-    const beatMs = 60000 / bpm;
-
-    this._melodyInterval = setInterval(() => {
-      if (!this._bgRunning || this._muted) return;
-      const s = step % pattern.length;
-      // Irregular: skip ~30% of beats — water doesn't drip perfectly on-time
-      if (Math.random() > 0.30) {
-        const freq = scale[pattern[s]];
-        // Accent on beat 1 and beat 9 of the pattern (the "downbeats")
-        const vol  = (s === 0 || s === 8) ? 0.22 : 0.13 + Math.random() * 0.05;
-        _drip(freq, vol);
-      }
-      step++;
-    }, beatMs * 0.5); // 8th-note grid
+    const scale  = [220, 261.6, 293.7, 329.6, 392, 440, 523.3, 587.3];
+    const beatMs = 60000 / 76;
+    this._melodyInterval = null; // no melodic sequence — pure ambient drips only
 
     // ── Random ambient drips — background texture, irregular timing ───────
     const schedAmbient = () => {

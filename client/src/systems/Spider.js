@@ -35,7 +35,6 @@ export default class Spider {
     // Track active touches for mobile
     this.touchLeft = false;
     this.touchRight = false;
-    this.touchJump = false;
 
     scene.events.on('update', this.update, this);
   }
@@ -43,25 +42,19 @@ export default class Spider {
   setupTouchInput() {
     const { width, height } = this.scene.scale;
 
-    // Left zone (left 40% of screen)
-    const leftZone = this.scene.add.zone(0, 0, width * 0.4, height)
+    // Left zone (left 50% of screen)
+    const leftZone = this.scene.add.zone(0, 0, width * 0.5, height)
       .setOrigin(0, 0).setInteractive();
     leftZone.on('pointerdown', () => { this.touchLeft = true; });
     leftZone.on('pointerup', () => { this.touchLeft = false; });
     leftZone.on('pointerout', () => { this.touchLeft = false; });
 
-    // Right zone (right 40%)
-    const rightZone = this.scene.add.zone(width * 0.6, 0, width * 0.4, height)
+    // Right zone (right 50%)
+    const rightZone = this.scene.add.zone(width * 0.5, 0, width * 0.5, height)
       .setOrigin(0, 0).setInteractive();
     rightZone.on('pointerdown', () => { this.touchRight = true; });
     rightZone.on('pointerup', () => { this.touchRight = false; });
     rightZone.on('pointerout', () => { this.touchRight = false; });
-
-    // Center zone = jump
-    const jumpZone = this.scene.add.zone(width * 0.4, 0, width * 0.2, height)
-      .setOrigin(0, 0).setInteractive();
-    jumpZone.on('pointerdown', () => { this.touchJump = true; });
-    jumpZone.on('pointerup', () => { this.touchJump = false; });
   }
 
   update() {
@@ -73,18 +66,14 @@ export default class Spider {
       return;
     }
 
-    const leftDown = this.cursors.left.isDown || this.wasd.left.isDown || this.touchLeft;
+    const leftDown  = this.cursors.left.isDown  || this.wasd.left.isDown  || this.touchLeft;
     const rightDown = this.cursors.right.isDown || this.wasd.right.isDown || this.touchRight;
-    const jumpDown = Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
-                     Phaser.Input.Keyboard.JustDown(this.wasd.up) ||
-                     this.touchJump;
 
-    // Horizontal movement
-    const speed = this.onGround ? 220 : 160;
+    // Horizontal swing
     if (leftDown) {
-      this.sprite.setVelocityX(-speed);
+      this.sprite.setVelocityX(-160);
     } else if (rightDown) {
-      this.sprite.setVelocityX(speed);
+      this.sprite.setVelocityX(160);
     }
 
     // Clamp spider inside pipe walls — half-body (18px) + wall thickness (68px)
@@ -105,20 +94,6 @@ export default class Spider {
       this.sprite.setDragX(80);
     } else {
       this.sprite.setDragX(600);
-    }
-
-    // Jump
-    if (jumpDown && this.onGround) {
-      this.sprite.setVelocityY(-580);
-      this.onGround = false;
-      this.currentPlatform = null;
-      sound.playJump();
-    }
-
-    // Bounce platform
-    if (this.currentPlatform?.platformType === PLATFORM_TYPES.BOUNCE && this.onGround) {
-      this.sprite.setVelocityY(-700);
-      this.onGround = false;
     }
 
     // Update tile height (how high spider has climbed)

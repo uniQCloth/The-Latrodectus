@@ -123,7 +123,7 @@ async function getPlayerByEmail(email) {
 
 async function getPlayerByUsername(username) {
   return db.query(
-    'SELECT id FROM players WHERE LOWER(username) = LOWER($1)',
+    'SELECT * FROM players WHERE LOWER(username) = LOWER($1)',
     [username]
   );
 }

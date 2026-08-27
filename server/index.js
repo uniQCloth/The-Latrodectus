@@ -116,22 +116,24 @@ app.post('/auth/register', async (req, res) => {
 });
 
 app.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password)
-    return res.status(400).json({ error: 'email and password are required' });
+  const { email: identifier, password } = req.body;
+  if (!identifier || !password)
+    return res.status(400).json({ error: 'Email/username and password are required' });
 
-  const lowerEmail = email.toLowerCase();
+  const isEmail = identifier.includes('@');
+  const lowerIdentifier = identifier.toLowerCase();
 
   if (db.isEnabled()) {
-    const result = await queries.getPlayerByEmail(lowerEmail);
+    const result = isEmail
+      ? await queries.getPlayerByEmail(lowerIdentifier)
+      : await queries.getPlayerByUsername(lowerIdentifier);
     const player = result?.rows?.[0];
-    if (!player) return res.status(401).json({ error: 'No account found with that email' });
+    if (!player) return res.status(401).json({ error: isEmail ? 'No account found with that email' : 'No account found with that username' });
     if (!player.password_hash) return res.status(401).json({ error: 'Account has no password set — contact support' });
 
     const match = await bcrypt.compare(password, player.password_hash);
     if (!match) return res.status(401).json({ error: 'Incorrect password' });
 
-    // Refresh registry in case of server restart
     if (!uuidUsernameMap.has(player.uuid)) {
       uuidUsernameMap.set(player.uuid, player.username);
       usernameRegistry.set(player.username.toLowerCase(), player.uuid);
@@ -140,8 +142,11 @@ app.post('/auth/login', async (req, res) => {
     const token = signToken({ uuid: player.uuid, username: player.username, playerId: player.id });
     return res.json({ token, username: player.username });
   } else {
-    const user = memAuthStore.get(lowerEmail);
-    if (!user) return res.status(401).json({ error: 'No account found with that email' });
+    // In-memory: look up by email or scan by username
+    let user = isEmail
+      ? memAuthStore.get(lowerIdentifier)
+      : [...memAuthStore.values()].find(u => u.username.toLowerCase() === lowerIdentifier);
+    if (!user) return res.status(401).json({ error: isEmail ? 'No account found with that email' : 'No account found with that username' });
 
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) return res.status(401).json({ error: 'Incorrect password' });

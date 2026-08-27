@@ -112,7 +112,7 @@ export default class UsernameScene extends Phaser.Scene {
 
     const fields = isLogin
       ? [
-          { key: 'email',    label: 'EMAIL',    type: 'email',    y: height * 0.485, hint: '' },
+          { key: 'email',    label: 'EMAIL OR USERNAME',    type: 'text',     y: height * 0.485, hint: '' },
           { key: 'password', label: 'PASSWORD', type: 'password', y: height * 0.565, hint: '' },
         ]
       : [
@@ -130,10 +130,12 @@ export default class UsernameScene extends Phaser.Scene {
 
       const el = document.createElement('input');
       el.type = type;
-      el.placeholder = label === 'EMAIL' ? 'your@email.com' : label === 'USERNAME' ? 'e.g. SpiderKing_99' : '••••••••';
+      el.placeholder = label === 'EMAIL OR USERNAME' ? 'email or username' : label === 'USERNAME' ? 'e.g. SpiderKing_99' : '••••••••';
       el.maxLength = key === 'username' ? 20 : 255;
-      el.autocomplete = key === 'password' ? 'current-password' : key === 'email' ? 'email' : 'off';
+      el.autocomplete = key === 'password' ? 'current-password' : key === 'email' ? 'username email' : 'off';
       el.spellcheck = false;
+      el.autocapitalize = 'none';
+      el.autocorrect = 'off';
       Object.assign(el.style, {
         position: 'absolute',
         left: `${(width / 2 - fieldW / 2) * scale + offset.x}px`,
@@ -237,8 +239,8 @@ export default class UsernameScene extends Phaser.Scene {
     const password = this._getFieldValue('password');
 
     // Client-side validation
-    if (!email) return this._showError('Email is required');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return this._showError('Enter a valid email address');
+    if (!email) return this._showError(isLogin ? 'Email or username is required' : 'Email is required');
+    if (!isLogin && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return this._showError('Enter a valid email address');
     if (!password) return this._showError('Password is required');
 
     let body = { email, password };
