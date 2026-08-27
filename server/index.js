@@ -516,7 +516,7 @@ const PORT = process.env.PORT || 3001;
   if (db.isEnabled()) seedUsernameRegistry();
 
   server.listen(PORT, () => {
-    console.log(`\n🕷  Widow Spider Multiplier — port ${PORT}`);
+    console.log(`\n🕷  The Latrodectus — port ${PORT}`);
     console.log(`   Health:      http://localhost:${PORT}/health`);
     console.log(`   History:     http://localhost:${PORT}/history`);
     console.log(`   Leaderboard: http://localhost:${PORT}/leaderboard`);

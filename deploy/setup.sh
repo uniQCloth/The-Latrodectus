@@ -11,7 +11,7 @@ DB_USER="wsm_user"
 DB_PASS="$(openssl rand -base64 24)"
 APP_DIR="/var/www/widow-spider"
 
-echo "🕷  Widow Spider Multiplier — VPS Setup"
+echo "🕷  The Latrodectus — VPS Setup"
 echo "======================================="
 
 # ── System update ─────────────────────────────────────────────────────────────

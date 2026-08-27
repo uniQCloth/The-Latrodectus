@@ -1,4 +1,4 @@
-# Widow Spider Multiplier — Full Build Plan
+# The Latrodectus — Full Build Plan
 
 ## Overview
 A browser-based vertical climbing crash game. A black widow spider uses a hula hoop to climb progressively disappearing platforms. Players bet 1–100 USDT and cash out before falling. Multiplier grows with height climbed (max 5000x at tile 5000).

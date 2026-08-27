@@ -1,5 +1,5 @@
 {
-  "name": "widow-spider-multiplier",
+  "name": "the-latrodectus",
   "version": "1.0.0",
   "scripts": {
     "start": "webpack serve --mode development",

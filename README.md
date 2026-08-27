@@ -1,11 +1,11 @@
-# 🕷️ Widow Spider Multiplier
+# 🕷️ The Latrodectus
 
 > **© 2026 uniQCloth — All Rights Reserved. Proprietary Software.**
 > See [LICENSE](./LICENSE) for permitted uses. This code may not be copied, forked, or distributed.
 
 ---
 
-**Widow Spider Multiplier** is an original multiplayer crash-style game where a black widow spider climbs a sewage drain pipe while a live multiplier grows. Cash out before the pipe bursts — or lose your bet to the flood.
+**The Latrodectus** is an original multiplayer crash-style game where a black widow spider climbs a sewage drain pipe while a live multiplier grows. Cash out before the pipe bursts — or lose your bet to the flood.
 
 Built from scratch with **Phaser 3**, **Socket.io**, **Node.js**, and **PostgreSQL**. Every sound is procedurally generated with the WebAudio API — no audio files.
 
@@ -27,7 +27,7 @@ The game is in active development and we are looking for players to:
 
 ## 🐛 How to Submit Feedback
 
-Open a **[GitHub Issue](https://github.com/uniQCloth/widow-spider-multiplier/issues/new/choose)** and pick a template:
+Open a **[GitHub Issue](https://github.com/uniQCloth/the-latrodectus/issues/new/choose)** and pick a template:
 
 | Template | Use for |
 |---|---|
@@ -70,7 +70,7 @@ All feedback is read personally by the developer. Good ideas get credited.
 
 ## 💼 Investors & Partnership
 
-Widow Spider Multiplier is seeking:
+The Latrodectus is seeking:
 
 - **Investment** to scale infrastructure, marketing, and game development
 - **Casino / iGaming platform partners** to license and integrate the game
@@ -90,7 +90,7 @@ Include: who you are, your platform/fund, and what you are looking for.
 ## 🏗️ Project Structure
 
 ```
-widow-spider-multiplier/
+the-latrodectus/
 ├── client/                    # Phaser 3 frontend (Webpack 5)
 │   └── src/
 │       ├── main.js            # Game bootstrap + scene registry
@@ -135,8 +135,8 @@ widow-spider-multiplier/
 
 ```bash
 # 1. Clone
-git clone https://github.com/uniQCloth/widow-spider-multiplier.git
-cd widow-spider-multiplier
+git clone https://github.com/uniQCloth/the-latrodectus.git
+cd the-latrodectus
 
 # 2. Install
 cd client && npm install

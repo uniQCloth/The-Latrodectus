@@ -16,7 +16,7 @@ export default class IntroScene extends Phaser.Scene {
     this.drawWebStrands(width, height);
 
     // Title text
-    const title = this.add.text(width / 2, height * 0.18, 'WIDOW SPIDER', {
+    const title = this.add.text(width / 2, height * 0.18, 'THE LATRODECTUS', {
       fontSize: '42px',
       fontFamily: 'Arial Black, sans-serif',
       color: '#ff2200',
@@ -25,7 +25,7 @@ export default class IntroScene extends Phaser.Scene {
       shadow: { offsetX: 2, offsetY: 2, color: '#ff0000', blur: 10, fill: true },
     }).setOrigin(0.5);
 
-    const subtitle = this.add.text(width / 2, height * 0.25, 'MULTIPLIER', {
+    const subtitle = this.add.text(width / 2, height * 0.25, '', {
       fontSize: '28px',
       fontFamily: 'Arial Black, sans-serif',
       color: '#ffffff',

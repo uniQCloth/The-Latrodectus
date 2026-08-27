@@ -375,7 +375,7 @@ export default class CinematicScene extends Phaser.Scene {
         .setDepth(24);
       this.tweens.add({ targets: titleBg, alpha: 0.65, duration: 600 });
 
-      const title = this.add.text(width / 2, height * 0.09, 'WIDOW SPIDER', {
+      const title = this.add.text(width / 2, height * 0.09, 'THE LATRODECTUS', {
         fontSize: '36px', fontFamily: 'Arial Black, sans-serif',
         color: '#ff2200', stroke: '#000000', strokeThickness: 6,
         shadow: { offsetX: 2, offsetY: 2, color: '#cc0000', blur: 10, fill: true },

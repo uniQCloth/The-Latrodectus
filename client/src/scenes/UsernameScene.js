@@ -24,13 +24,9 @@ export default class UsernameScene extends Phaser.Scene {
     this._drawWebStrands(width, height);
 
     // Title
-    this.add.text(width / 2, height * 0.07, 'WIDOW SPIDER', {
+    this.add.text(width / 2, height * 0.07, 'THE LATRODECTUS', {
       fontSize: '32px', fontFamily: 'Arial Black, sans-serif',
       color: '#ff2200', stroke: '#000000', strokeThickness: 5,
-    }).setOrigin(0.5);
-    this.add.text(width / 2, height * 0.13, 'MULTIPLIER', {
-      fontSize: '20px', fontFamily: 'Arial Black, sans-serif',
-      color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
     // Silk thread + mini spider

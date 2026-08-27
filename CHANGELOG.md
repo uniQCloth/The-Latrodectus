@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Widow Spider Multiplier.
+All notable changes to The Latrodectus.
 
 ---
 
