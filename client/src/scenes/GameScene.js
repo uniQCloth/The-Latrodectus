@@ -1674,8 +1674,41 @@ export default class GameScene extends Phaser.Scene {
 
     sound.playJumpScareCrash();
 
-    // Camera shake — unmistakably a game event, not a glitch
-    this.cameras.main.shake(550, 0.016);
+    // Double shake — first crack, then full burst
+    this.cameras.main.shake(300, 0.014);
+    this.time.delayedCall(80, () => this.cameras.main.shake(600, 0.026));
+
+    // White crack flash on both pipe walls
+    const crackFx = this.add.graphics().setScrollFactor(0).setDepth(23);
+    crackFx.fillStyle(0xffffff, 0.85);
+    crackFx.fillRect(PIPE_WALL - 6, 0, 6, height);       // left wall edge
+    crackFx.fillRect(width - PIPE_WALL, 0, 6, height);   // right wall edge
+    this.tweens.add({ targets: crackFx, alpha: 0, duration: 180, ease: 'Power3',
+      onComplete: () => crackFx.destroy() });
+
+    // Water spray droplets ejecting from both walls
+    const dropColors = [0xaaddff, 0x88ccff, 0xffffff, 0x66bbff];
+    for (let d = 0; d < 20; d++) {
+      const fromLeft = d < 10;
+      const startX   = fromLeft ? PIPE_WALL + 2 : width - PIPE_WALL - 2;
+      const startY   = Phaser.Math.Between(height * 0.15, height * 0.85);
+      const velX     = fromLeft
+        ? Phaser.Math.Between(18, 55)
+        : Phaser.Math.Between(-55, -18);
+      const velY     = Phaser.Math.Between(-20, 30);
+      const radius   = Phaser.Math.FloatBetween(1.5, 3.5);
+      const col      = dropColors[Math.floor(Math.random() * dropColors.length)];
+      const drop     = this.add.graphics().setScrollFactor(0).setDepth(22);
+      drop.fillStyle(col, 0.9); drop.fillCircle(startX, startY, radius);
+      this.tweens.add({
+        targets: drop,
+        x: velX, y: velY,
+        alpha: 0,
+        duration: Phaser.Math.Between(380, 700),
+        ease: 'Power2',
+        onComplete: () => drop.destroy(),
+      });
+    }
 
     // Red pulse on the pipe interior
     const redFlash = this.add.graphics().setScrollFactor(0).setDepth(22);
