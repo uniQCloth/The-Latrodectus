@@ -39,7 +39,7 @@ const io = new Server(server, {
   cors: {
     origin: process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',')
-      : ['http://localhost:8181', 'http://127.0.0.1:8181', 'http://localhost:8080'],
+      : true, // allow all origins when env var not explicitly set
     methods: ['GET', 'POST'],
   },
 });
