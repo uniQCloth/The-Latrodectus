@@ -1,15 +1,123 @@
 import { SERVER_URL } from '../config';
 
+const CSS = `
+  #wp-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    font-family: Arial, sans-serif;
+  }
+  #wp-panel {
+    background: #111; border: 2px solid #00ff88; border-radius: 12px;
+    width: 400px; max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 40px); overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  #wp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px 0; flex-shrink: 0;
+  }
+  #wp-title { color: #00ff88; font-size: 16px; font-weight: bold; margin: 0; }
+  #wp-close {
+    background: none; border: none; color: #666; font-size: 20px;
+    cursor: pointer; line-height: 1; padding: 0 2px;
+  }
+  #wp-close:hover { color: #fff; }
+  #wp-tabs {
+    display: flex; border-bottom: 2px solid #222;
+    padding: 10px 18px 0; gap: 4px; flex-shrink: 0;
+  }
+  .wp-tab {
+    padding: 7px 14px; font-size: 12px; font-weight: bold;
+    border: none; border-radius: 6px 6px 0 0; cursor: pointer;
+    background: #1a1a1a; color: #666; letter-spacing: .3px;
+  }
+  .wp-tab.active { background: #00ff88; color: #000; }
+  #wp-body { padding: 18px; overflow-y: auto; flex: 1; }
+  .wp-section { margin-bottom: 14px; }
+  .wp-label {
+    font-size: 11px; color: #888; text-transform: uppercase;
+    letter-spacing: .8px; margin-bottom: 5px; display: block;
+  }
+  .wp-input {
+    width: 100%; padding: 9px 11px; background: #1a1a1a;
+    border: 1px solid #333; border-radius: 6px; color: #fff;
+    font-size: 13px; outline: none; box-sizing: border-box;
+  }
+  .wp-input:focus { border-color: #00ff88; }
+  .wp-input::placeholder { color: #444; }
+  .wp-addr-row { display: flex; gap: 8px; align-items: stretch; }
+  .wp-addr-row .wp-input { font-size: 10px; font-family: monospace; color: #00ff88; flex: 1; }
+  .wp-copy-btn {
+    padding: 0 14px; background: #00aa44; color: #000; border: none;
+    border-radius: 6px; font-size: 12px; font-weight: bold;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  }
+  .wp-copy-btn:hover { background: #00cc55; }
+  .wp-warning {
+    font-size: 11px; color: #ff5500; background: #1a0a00;
+    border: 1px solid #331100; border-radius: 5px;
+    padding: 6px 10px; margin-bottom: 14px;
+  }
+  .wp-info-row {
+    display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap;
+  }
+  .wp-info-pill {
+    font-size: 10px; color: #666; background: #1a1a1a;
+    border-radius: 4px; padding: 3px 8px;
+  }
+  .wp-amount-row { display: flex; gap: 8px; align-items: flex-start; }
+  .wp-amount-row .wp-input { width: 130px; flex-shrink: 0; }
+  .wp-receive-box {
+    flex: 1; background: #001a0d; border: 1px solid #00aa44;
+    border-radius: 6px; padding: 8px 11px;
+  }
+  .wp-receive-box .label { font-size: 10px; color: #555; }
+  .wp-receive-box .value { font-size: 18px; font-weight: bold; color: #00ff88; margin-top: 1px; }
+  .wp-btn {
+    width: 100%; padding: 12px; border: none; border-radius: 7px;
+    font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 4px;
+    letter-spacing: .3px;
+  }
+  .wp-btn-green { background: #00ff88; color: #000; }
+  .wp-btn-green:hover { background: #00cc66; }
+  .wp-btn-orange { background: #ff8800; color: #000; }
+  .wp-btn-orange:hover { background: #cc6600; }
+  .wp-btn:disabled { background: #333; color: #555; cursor: not-allowed; }
+  .wp-rules {
+    font-size: 10px; color: #444; text-align: center;
+    margin-top: 10px; line-height: 1.7;
+  }
+  .wp-msg { font-size: 12px; margin-top: 10px; text-align: center;
+            min-height: 18px; line-height: 1.5; }
+  .wp-msg.ok  { color: #00ff88; }
+  .wp-msg.err { color: #ff4444; }
+  .wp-divider { border: none; border-top: 1px solid #1a1a1a; margin: 14px 0; }
+  /* History */
+  .wp-tx { display: flex; justify-content: space-between; align-items: center;
+           padding: 9px 0; border-bottom: 1px solid #1a1a1a; font-size: 12px; }
+  .wp-tx:last-child { border-bottom: none; }
+  .wp-tx-type { color: #888; text-transform: uppercase; font-size: 10px;
+                letter-spacing: .5px; margin-top: 2px; }
+  .wp-tx-amt { font-weight: bold; }
+  .wp-tx-amt.dep { color: #00ff88; }
+  .wp-tx-amt.with { color: #ff8800; }
+  .wp-tx-status { font-size: 10px; color: #555; margin-top: 2px; text-align: right; }
+  .wp-empty { color: #444; text-align: center; padding: 30px 0; font-size: 13px; }
+  .wp-mock { font-size: 10px; color: #ff8800; text-align: center;
+             margin-bottom: 12px; }
+`;
+
 export default class WalletPanel {
   constructor(scene, socketId, onBalanceUpdate) {
-    this.scene = scene;
-    this.socketId = socketId;
+    this.scene       = scene;
+    this.socketId    = socketId;
     this.onBalanceUpdate = onBalanceUpdate;
-    this.visible = false;
+    this.visible     = false;
     this.depositInfo = null;
-    this.elements = [];
-    this.tab = 'deposit'; // 'deposit' | 'withdraw' | 'history'
-
+    this.tab         = 'deposit';
+    this._el         = null;
+    this._styleEl    = null;
     this._fetchDepositInfo();
   }
 
@@ -22,404 +130,282 @@ export default class WalletPanel {
     }
   }
 
-  // ── Toggle ────────────────────────────────────────────────────────────────
-
-  toggle() {
-    this.visible ? this.hide() : this.show();
-  }
+  toggle() { this.visible ? this.hide() : this.show(); }
 
   show() {
     this.visible = true;
-    this._render();
+    this._injectStyles();
+    if (this._el) this._el.remove();
+    this._el = this._build();
+    document.body.appendChild(this._el);
   }
 
   hide() {
     this.visible = false;
-    this.elements.forEach(e => e?.destroy?.());
-    this.elements = [];
+    if (this._el) { this._el.remove(); this._el = null; }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  _injectStyles() {
+    if (document.getElementById('wp-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'wp-styles';
+    s.textContent = CSS;
+    document.head.appendChild(s);
+  }
 
-  _render() {
-    this.elements.forEach(e => e?.destroy?.());
-    this.elements = [];
+  _build() {
+    const overlay = document.createElement('div');
+    overlay.id = 'wp-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) this.hide(); });
 
-    const { width, height } = this.scene.scale;
-    const panelW = Math.min(width - 20, 460);
-    const panelH = 500;
-    const panelX = width / 2;
-    const panelY = height / 2;
+    overlay.innerHTML = `
+      <div id="wp-panel">
+        <div id="wp-header">
+          <p id="wp-title">💰 WALLET</p>
+          <button id="wp-close">✕</button>
+        </div>
+        <div id="wp-tabs">
+          <button class="wp-tab ${this.tab==='deposit'  ?'active':''}" data-tab="deposit">DEPOSIT</button>
+          <button class="wp-tab ${this.tab==='withdraw' ?'active':''}" data-tab="withdraw">WITHDRAW</button>
+          <button class="wp-tab ${this.tab==='history'  ?'active':''}" data-tab="history">HISTORY</button>
+        </div>
+        <div id="wp-body">
+          ${this.tab === 'deposit'  ? this._depositHTML()  : ''}
+          ${this.tab === 'withdraw' ? this._withdrawHTML() : ''}
+          ${this.tab === 'history'  ? this._historyHTML()  : ''}
+        </div>
+      </div>
+    `;
 
-    // Backdrop
-    const backdrop = this.scene.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.6)
-      .setScrollFactor(0).setDepth(30).setInteractive();
-    backdrop.on('pointerdown', () => this.hide());
-    this.elements.push(backdrop);
+    overlay.querySelector('#wp-close').addEventListener('click', () => this.hide());
 
-    // Panel bg
-    const panel = this.scene.add.rectangle(panelX, panelY, panelW, panelH, 0x111111, 1)
-      .setScrollFactor(0).setDepth(31);
-    panel.setStrokeStyle(2, 0x00ff88);
-    this.elements.push(panel);
-
-    // Title
-    const title = this.scene.add.text(panelX, panelY - panelH / 2 + 24, '💰 WALLET', {
-      fontSize: '20px', fontFamily: 'Arial Black, sans-serif', color: '#00ff88',
-    }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(32);
-    this.elements.push(title);
-
-    // Mock badge
-    if (this.depositInfo?.mock) {
-      const badge = this.scene.add.text(panelX, panelY - panelH / 2 + 46, '⚠ MOCK MODE — no real funds', {
-        fontSize: '11px', color: '#ff8800',
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
-      this.elements.push(badge);
-    }
-
-    // Close button
-    const closeBtn = this.scene.add.text(panelX + panelW / 2 - 12, panelY - panelH / 2 + 12, '✕', {
-      fontSize: '18px', color: '#888888',
-    }).setOrigin(1, 0).setScrollFactor(0).setDepth(32).setInteractive({ useHandCursor: true });
-    closeBtn.on('pointerdown', () => this.hide());
-    closeBtn.on('pointerover', () => closeBtn.setColor('#ffffff'));
-    closeBtn.on('pointerout', () => closeBtn.setColor('#888888'));
-    this.elements.push(closeBtn);
-
-    // Tab bar
-    const tabs = ['DEPOSIT', 'WITHDRAW', 'HISTORY'];
-    const tabY = panelY - panelH / 2 + 72;
-    tabs.forEach((label, i) => {
-      const tabX = panelX - panelW / 2 + 30 + i * (panelW / 3);
-      const isActive = this.tab === label.toLowerCase();
-      const tabBtn = this.scene.add.text(tabX, tabY, label, {
-        fontSize: '13px', fontFamily: 'Arial Black, sans-serif',
-        color: isActive ? '#000000' : '#aaaaaa',
-        backgroundColor: isActive ? '#00ff88' : '#222222',
-        padding: { x: 12, y: 6 },
-      }).setScrollFactor(0).setDepth(32).setInteractive({ useHandCursor: true });
-
-      tabBtn.on('pointerdown', () => {
-        this.tab = label.toLowerCase();
+    overlay.querySelectorAll('.wp-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.tab = btn.dataset.tab;
         this.hide();
         this.show();
       });
-      this.elements.push(tabBtn);
     });
 
-    // Content area
-    const contentY = panelY - panelH / 2 + 110;
-    const contentX = panelX - panelW / 2 + 20;
-    const contentW = panelW - 40;
+    if (this.tab === 'deposit')  this._bindDeposit(overlay);
+    if (this.tab === 'withdraw') this._bindWithdraw(overlay);
+    if (this.tab === 'history')  this._loadHistory(overlay);
 
-    if (this.tab === 'deposit') this._renderDeposit(contentX, contentY, contentW, panelX);
-    if (this.tab === 'withdraw') this._renderWithdraw(contentX, contentY, contentW, panelX);
-    if (this.tab === 'history') this._renderHistory(contentX, contentY, contentW, panelX);
+    return overlay;
   }
 
-  _renderDeposit(x, y, w, cx) {
-    const add = (el) => this.elements.push(el);
+  // ── DEPOSIT ────────────────────────────────────────────────────────────────
+
+  _depositHTML() {
     const address = this.depositInfo?.houseAddress || 'Loading…';
-    const token   = this.depositInfo?.token || 'USDT-ERC20';
-    const chain   = this.depositInfo?.chain || 'Ethereum';
+    const mock    = this.depositInfo?.mock;
+    return `
+      ${mock ? '<div class="wp-mock">⚠ MOCK MODE — no real funds moved</div>' : ''}
+      <div class="wp-warning">
+        ⚠ Send <strong>USDT only</strong> on the <strong>Ethereum (ERC-20)</strong> network.<br>
+        Wrong network = lost funds. No other tokens accepted.
+      </div>
 
-    add(this.scene.add.text(cx, y, 'HOW TO DEPOSIT USDT', {
-      fontSize: '13px', fontFamily: 'Arial Black, sans-serif', color: '#00ff88',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
+      <div class="wp-section">
+        <span class="wp-label">① Send USDT to this address</span>
+        <div class="wp-addr-row">
+          <input class="wp-input" id="wp-dep-addr" readonly value="${address}" />
+          <button class="wp-copy-btn" id="wp-copy-btn">COPY</button>
+        </div>
+      </div>
 
-    // Step 1
-    add(this.scene.add.text(x, y + 20, '① SEND USDT TO THIS ADDRESS', {
-      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
-    }).setScrollFactor(0).setDepth(32));
+      <hr class="wp-divider">
 
-    add(this.scene.add.text(x, y + 33, '⚠ Ethereum network only — ERC-20 USDT — minimum $10', {
-      fontSize: '10px', color: '#ff4400',
-    }).setScrollFactor(0).setDepth(32));
+      <div class="wp-section">
+        <span class="wp-label">② After sending — paste your transaction hash</span>
+        <input class="wp-input" id="wp-txid" placeholder="0x… transaction hash from MetaMask" />
+      </div>
 
-    // House address box
-    const addrBg = this.scene.add.rectangle(cx, y + 56, w, 30, 0x0d1a0d)
-      .setScrollFactor(0).setDepth(32).setStrokeStyle(1, 0x00aa44);
-    add(addrBg);
+      <div class="wp-section">
+        <span class="wp-label">③ Amount you sent (USDT)</span>
+        <input class="wp-input" id="wp-dep-amt" type="number" placeholder="e.g. 50" min="10" max="5000" style="width:160px;" />
+        <div class="wp-info-row">
+          <span class="wp-info-pill">Min deposit: $10</span>
+          <span class="wp-info-pill">Max deposit: $5,000</span>
+        </div>
+      </div>
 
-    const addrText = this.scene.add.text(cx, y + 52, address, {
-      fontSize: '10px', color: '#00ff88', fontFamily: 'monospace',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(33);
-    add(addrText);
+      <button class="wp-btn wp-btn-green" id="wp-dep-btn">VERIFY & CREDIT BALANCE</button>
+      <div class="wp-msg" id="wp-dep-msg"></div>
+    `;
+  }
 
-    // Copy address button
-    const copyDom = this.scene.add.dom(cx, y + 74).createFromHTML(
-      `<button style="padding:4px 18px;background:#00aa44;color:#000;border:none;border-radius:4px;
-        font-size:11px;font-weight:bold;cursor:pointer;font-family:Arial Black,sans-serif;
-        letter-spacing:.5px;">📋 COPY ADDRESS</button>`
-    ).setScrollFactor(0).setDepth(33);
-    copyDom.node.querySelector('button').addEventListener('click', () => {
-      navigator.clipboard.writeText(address).then(() => {
-        const btn = copyDom.node.querySelector('button');
-        btn.textContent = '✓ COPIED!';
-        btn.style.background = '#00ff88';
-        setTimeout(() => { btn.textContent = '📋 COPY ADDRESS'; btn.style.background = '#00aa44'; }, 2000);
-      }).catch(() => {
+  _bindDeposit(overlay) {
+    // Copy button
+    overlay.querySelector('#wp-copy-btn').addEventListener('click', () => {
+      const addr = this.depositInfo?.houseAddress || '';
+      const btn  = overlay.querySelector('#wp-copy-btn');
+      navigator.clipboard.writeText(addr).catch(() => {
         const ta = document.createElement('textarea');
-        ta.value = address; document.body.appendChild(ta); ta.select();
-        document.execCommand('copy'); document.body.removeChild(ta);
-        const btn = copyDom.node.querySelector('button');
-        btn.textContent = '✓ COPIED!';
-        setTimeout(() => { btn.textContent = '📋 COPY ADDRESS'; }, 2000);
+        ta.value = addr; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
       });
-    });
-    add(copyDom);
-
-    // Step 2
-    add(this.scene.add.text(x, y + 96, '② COPY YOUR TRANSACTION HASH', {
-      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
-    }).setScrollFactor(0).setDepth(32));
-
-    add(this.scene.add.text(x, y + 109,
-      'After sending: MetaMask → Activity → tap the tx → copy the hash (0x…)',
-      { fontSize: '10px', color: '#666666' }
-    ).setScrollFactor(0).setDepth(32));
-
-    // Step 3
-    add(this.scene.add.text(x, y + 126, '③ ENTER HASH + AMOUNT AND VERIFY', {
-      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
-    }).setScrollFactor(0).setDepth(32));
-
-    add(this.scene.add.text(cx, y + 140, 'Transaction Hash (0x…):', {
-      fontSize: '11px', color: '#aaaaaa',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
-
-    const txidInput = this._createInput(cx, y + 158, w, 'Paste transaction hash here (0x…)');
-    add(txidInput.el);
-
-    add(this.scene.add.text(cx, y + 182, 'Amount you sent (USDT):', {
-      fontSize: '11px', color: '#aaaaaa',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
-
-    const amtInput = this._createInput(cx - w * 0.15, y + 200, w * 0.55, 'e.g. 50');
-    add(amtInput.el);
-
-    // Submit button
-    const submitBtn = this.scene.add.text(cx, y + 236, '  VERIFY & CREDIT BALANCE  ', {
-      fontSize: '15px', fontFamily: 'Arial Black, sans-serif',
-      color: '#000000', backgroundColor: '#00ff88',
-      padding: { x: 16, y: 10 },
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32).setInteractive({ useHandCursor: true });
-
-    submitBtn.on('pointerdown', () => {
-      this._submitDeposit(txidInput.dom, amtInput.dom, submitBtn);
-    });
-    submitBtn.on('pointerover', () => submitBtn.setStyle({ backgroundColor: '#00cc66' }));
-    submitBtn.on('pointerout', () => submitBtn.setStyle({ backgroundColor: '#00ff88' }));
-    add(submitBtn);
-
-    this.resultText = this.scene.add.text(cx, y + 278, '', {
-      fontSize: '12px', color: '#00ff88', align: 'center',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
-    add(this.resultText);
-  }
-
-  _renderWithdraw(x, y, w, cx) {
-    const add = (el) => this.elements.push(el);
-    const FEE = 5;
-    const MIN = 10;
-    const MAX_DAILY = 2000;
-
-    // ── Header ────────────────────────────────────────────────────────────────
-    add(this.scene.add.text(cx, y, 'HOW TO WITHDRAW YOUR USDT', {
-      fontSize: '13px', fontFamily: 'Arial Black, sans-serif', color: '#00ff88',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
-
-    // ── Step 1 ────────────────────────────────────────────────────────────────
-    add(this.scene.add.text(x, y + 20, '① ENTER YOUR WALLET ADDRESS', {
-      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
-    }).setScrollFactor(0).setDepth(32));
-
-    add(this.scene.add.text(x, y + 34, 'Open MetaMask (or any Ethereum wallet) and copy your address.', {
-      fontSize: '10px', color: '#666666',
-    }).setScrollFactor(0).setDepth(32));
-
-    const addrInput = this._createInput(cx, y + 56, w, '0x… paste your Ethereum address here');
-    add(addrInput.el);
-
-    // ── Step 2 ────────────────────────────────────────────────────────────────
-    add(this.scene.add.text(x, y + 80, '② ENTER AMOUNT (USDT)', {
-      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
-    }).setScrollFactor(0).setDepth(32));
-
-    add(this.scene.add.text(x, y + 93, `Minimum $${MIN} USDT. A $${FEE} flat fee is deducted per withdrawal.`, {
-      fontSize: '10px', color: '#666666',
-    }).setScrollFactor(0).setDepth(32));
-
-    const amtInput = this._createInput(cx - w * 0.18, y + 114, w * 0.55, 'Amount in USDT, e.g. 50');
-    add(amtInput.el);
-
-    // Live fee calculator
-    const feeBox = this.scene.add.text(cx + w * 0.27, y + 114, `You receive:\n$${MIN - FEE}.00`, {
-      fontSize: '11px', color: '#00ff88', align: 'center',
-      backgroundColor: '#002211', padding: { x: 8, y: 6 },
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
-    add(feeBox);
-
-    amtInput.dom.addEventListener('input', () => {
-      const v = parseFloat(amtInput.dom.value) || 0;
-      const net = Math.max(0, v - FEE);
-      feeBox.setText(`You receive:\n$${net.toFixed(2)}`);
-      feeBox.setColor(v >= MIN ? '#00ff88' : '#ff4444');
+      btn.textContent = '✓ COPIED';
+      btn.style.background = '#00ff88';
+      setTimeout(() => { btn.textContent = 'COPY'; btn.style.background = ''; }, 2000);
     });
 
-    // ── Step 3 ────────────────────────────────────────────────────────────────
-    add(this.scene.add.text(x, y + 140, '③ CONFIRM & SEND', {
-      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
-    }).setScrollFactor(0).setDepth(32));
+    // Submit
+    overlay.querySelector('#wp-dep-btn').addEventListener('click', async () => {
+      const txid   = overlay.querySelector('#wp-txid').value.trim();
+      const amount = parseFloat(overlay.querySelector('#wp-dep-amt').value);
+      const msg    = overlay.querySelector('#wp-dep-msg');
+      const btn    = overlay.querySelector('#wp-dep-btn');
 
-    add(this.scene.add.text(x, y + 153,
-      'USDT-ERC20 will be sent to your address on the Ethereum network.',
-      { fontSize: '10px', color: '#666666' }
-    ).setScrollFactor(0).setDepth(32));
+      if (!txid)              return this._msg(msg, 'Paste your transaction hash first', false);
+      if (amount < 10)        return this._msg(msg, 'Minimum deposit is $10 USDT', false);
+      if (amount > 5000)      return this._msg(msg, 'Maximum deposit is $5,000 USDT', false);
 
-    const withdrawBtn = this.scene.add.text(cx, y + 178, '  WITHDRAW USDT  ', {
-      fontSize: '15px', fontFamily: 'Arial Black, sans-serif',
-      color: '#000000', backgroundColor: '#ff8800',
-      padding: { x: 20, y: 10 },
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32).setInteractive({ useHandCursor: true });
-
-    withdrawBtn.on('pointerdown', () => {
-      this._submitWithdrawal(addrInput.dom, amtInput.dom, withdrawBtn);
-    });
-    withdrawBtn.on('pointerover', () => withdrawBtn.setStyle({ backgroundColor: '#cc6600' }));
-    withdrawBtn.on('pointerout', () => withdrawBtn.setStyle({ backgroundColor: '#ff8800' }));
-    add(withdrawBtn);
-
-    // ── Rules summary ─────────────────────────────────────────────────────────
-    add(this.scene.add.text(cx, y + 214,
-      `$${FEE} fee  •  $${MIN} min  •  $${MAX_DAILY}/day max  •  10 min cooldown  •  ERC-20 USDT only`,
-      { fontSize: '10px', color: '#444444', align: 'center' }
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(32));
-
-    this.resultText = this.scene.add.text(cx, y + 240, '', {
-      fontSize: '12px', color: '#00ff88', align: 'center', wordWrap: { width: w },
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
-    add(this.resultText);
-  }
-
-  _renderHistory(x, y, w, cx) {
-    const add = (el) => this.elements.push(el);
-
-    add(this.scene.add.text(cx, y, 'Loading transaction history…', {
-      fontSize: '12px', color: '#666666',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
-
-    fetch(`${SERVER_URL}/payment/history/${this.socketId}`)
-      .then(r => r.json())
-      .then(rows => {
-        this.elements = this.elements.filter(e => e?.active !== false);
-        if (!rows.length) {
-          add(this.scene.add.text(cx, y, 'No transactions yet.', {
-            fontSize: '13px', color: '#555555',
-          }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
-          return;
-        }
-        rows.slice(0, 8).forEach((row, i) => {
-          const color = row.type === 'deposit' ? '#00ff88' : '#ff8800';
-          const icon = row.type === 'deposit' ? '↓' : '↑';
-          const status = row.status === 'confirmed' ? '✓' : '⏳';
-          add(this.scene.add.text(x, y + i * 28,
-            `${icon} $${parseFloat(row.amount).toFixed(2)} USDT  ${status} ${row.type}`,
-            { fontSize: '12px', color }
-          ).setScrollFactor(0).setDepth(32));
+      btn.disabled = true; btn.textContent = 'Verifying…';
+      try {
+        const res  = await fetch(`${SERVER_URL}/payment/deposit`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ socketId: this.socketId, txid, amount }),
         });
-      })
-      .catch(() => {});
+        const data = await res.json();
+        if (data.ok) {
+          this._msg(msg, `✓ Credited $${data.amountUSDT} USDT to your balance${data.mock ? ' (mock)' : ''}`, true);
+          if (this.onBalanceUpdate) this.onBalanceUpdate(data.newBalance);
+          overlay.querySelector('#wp-txid').value      = '';
+          overlay.querySelector('#wp-dep-amt').value   = '';
+        } else {
+          this._msg(msg, `✗ ${data.error}`, false);
+        }
+      } catch { this._msg(msg, 'Server error — try again', false); }
+      btn.disabled = false; btn.textContent = 'VERIFY & CREDIT BALANCE';
+    });
   }
 
-  // ── DOM Input Elements ────────────────────────────────────────────────────
+  // ── WITHDRAW ───────────────────────────────────────────────────────────────
 
-  _createInput(cx, cy, w, placeholder) {
-    const domEl = this.scene.add.dom(cx, cy).createFromHTML(
-      `<input type="text" placeholder="${placeholder}"
-        style="width:${w}px;padding:6px 10px;background:#1a1a1a;color:#fff;
-               border:1px solid #333;border-radius:4px;font-size:12px;outline:none;
-               font-family:monospace;" />`
-    ).setScrollFactor(0).setDepth(33);
-    return { el: domEl, dom: domEl.node.querySelector('input') };
+  _withdrawHTML() {
+    return `
+      <div class="wp-section">
+        <span class="wp-label">① Your Ethereum wallet address</span>
+        <input class="wp-input" id="wp-w-addr" placeholder="0x… your MetaMask address" />
+      </div>
+
+      <div class="wp-section">
+        <span class="wp-label">② Amount to withdraw</span>
+        <div class="wp-amount-row">
+          <input class="wp-input" id="wp-w-amt" type="number" placeholder="10" min="10" max="2000" />
+          <div class="wp-receive-box">
+            <div class="label">You receive</div>
+            <div class="value" id="wp-receive">$5.00</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="wp-btn wp-btn-orange" id="wp-w-btn">WITHDRAW USDT</button>
+
+      <div class="wp-rules">
+        $5 fee deducted per withdrawal &nbsp;·&nbsp; Min $10 &nbsp;·&nbsp; Max $2,000/day<br>
+        10 min cooldown between withdrawals &nbsp;·&nbsp; ERC-20 USDT on Ethereum only
+      </div>
+      <div class="wp-msg" id="wp-w-msg"></div>
+    `;
   }
 
-  // ── API Calls ─────────────────────────────────────────────────────────────
+  _bindWithdraw(overlay) {
+    const amtEl     = overlay.querySelector('#wp-w-amt');
+    const receiveEl = overlay.querySelector('#wp-receive');
+    const FEE = 5;
 
-  async _submitDeposit(txidEl, amtEl, btn) {
-    const txid = txidEl?.value?.trim();
-    const amount = parseFloat(amtEl?.value);
+    amtEl.addEventListener('input', () => {
+      const v   = parseFloat(amtEl.value) || 0;
+      const net = Math.max(0, v - FEE);
+      receiveEl.textContent = `$${net.toFixed(2)}`;
+      receiveEl.style.color = v >= 10 ? '#00ff88' : '#ff4444';
+    });
 
-    if (!txid) return this._showResult('Enter a transaction ID', false);
-    if (!amount || amount < 10) return this._showResult('Minimum deposit is $10 USDT (Ethereum ERC-20 only)', false);
+    overlay.querySelector('#wp-w-btn').addEventListener('click', async () => {
+      const addr   = overlay.querySelector('#wp-w-addr').value.trim();
+      const amount = parseFloat(amtEl.value);
+      const msg    = overlay.querySelector('#wp-w-msg');
+      const btn    = overlay.querySelector('#wp-w-btn');
 
-    btn.setText('Verifying…').setStyle({ backgroundColor: '#555555' });
+      if (!addr.startsWith('0x') || addr.length !== 42)
+        return this._msg(msg, 'Enter a valid Ethereum address (0x + 40 characters)', false);
+      if (!amount || amount < 10)
+        return this._msg(msg, 'Minimum withdrawal is $10 USDT', false);
+      if (amount > 2000)
+        return this._msg(msg, 'Maximum $2,000 per day', false);
 
+      btn.disabled = true; btn.textContent = 'Processing…';
+      try {
+        const res  = await fetch(`${SERVER_URL}/payment/withdraw`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ socketId: this.socketId, toAddress: addr, amount }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          const net = data.netAmount ?? (amount - FEE);
+          const txt = data.status === 'queued'
+            ? `⏳ Queued for review — you will receive $${net.toFixed(2)} USDT once approved`
+            : `✓ Sent $${net.toFixed(2)} USDT${data.mock ? ' (mock)' : ''} — Tx: ${(data.txid||'').slice(0,20)}…`;
+          this._msg(msg, txt, true);
+          if (this.onBalanceUpdate) this.onBalanceUpdate(data.newBalance);
+          amtEl.value = '';
+          receiveEl.textContent = '$5.00';
+        } else {
+          this._msg(msg, `✗ ${data.error}`, false);
+        }
+      } catch { this._msg(msg, 'Server error — try again', false); }
+      btn.disabled = false; btn.textContent = 'WITHDRAW USDT';
+    });
+  }
+
+  // ── HISTORY ────────────────────────────────────────────────────────────────
+
+  _historyHTML() {
+    return `<div id="wp-hist-list"><div class="wp-empty">Loading…</div></div>`;
+  }
+
+  async _loadHistory(overlay) {
+    const container = overlay.querySelector('#wp-hist-list');
     try {
-      const res = await fetch(`${SERVER_URL}/payment/deposit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ socketId: this.socketId, txid, amount }),
-      });
-      const data = await res.json();
-
-      if (data.ok) {
-        this._showResult(`✓ Deposited $${data.amountUSDT} USDT${data.mock ? ' (MOCK)' : ''}`, true);
-        if (this.onBalanceUpdate) this.onBalanceUpdate(data.newBalance);
-        txidEl.value = '';
-        amtEl.value = '';
-      } else {
-        this._showResult(`✗ ${data.error}`, false);
+      const res  = await fetch(`${SERVER_URL}/payment/history/${this.socketId}`);
+      const rows = await res.json();
+      if (!rows.length) {
+        container.innerHTML = '<div class="wp-empty">No transactions yet</div>';
+        return;
       }
+      container.innerHTML = rows.slice(0, 12).map(r => {
+        const dep  = r.type === 'deposit';
+        const amt  = parseFloat(r.amount).toFixed(2);
+        const date = new Date(r.created_at || r.confirmed_at).toLocaleDateString();
+        const ok   = r.status === 'confirmed';
+        return `
+          <div class="wp-tx">
+            <div>
+              <div style="color:#ccc;font-size:13px;">${dep ? '↓ Deposit' : '↑ Withdraw'}</div>
+              <div class="wp-tx-type">${date}</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="wp-tx-amt ${dep ? 'dep' : 'with'}">
+                ${dep ? '+' : '-'}$${amt}
+              </div>
+              <div class="wp-tx-status">${ok ? '✓ confirmed' : '⏳ pending'}</div>
+            </div>
+          </div>`;
+      }).join('');
     } catch {
-      this._showResult('Server error — try again', false);
-    }
-
-    btn.setText('VERIFY & CREDIT').setStyle({ backgroundColor: '#00ff88' });
-  }
-
-  async _submitWithdrawal(addrEl, amtEl, btn) {
-    const toAddress = addrEl?.value?.trim();
-    const amount = parseFloat(amtEl?.value);
-
-    if (!toAddress) return this._showResult('Enter your Ethereum wallet address (0x…)', false);
-    if (!toAddress.startsWith('0x') || toAddress.length !== 42) return this._showResult('Address must be a valid Ethereum address (0x + 40 hex chars)', false);
-    if (!amount || amount < 10) return this._showResult('Minimum withdrawal is $10 USDT (you receive $5 after the $5 fee)', false);
-
-    btn.setText('Processing…').setStyle({ backgroundColor: '#555555' });
-
-    try {
-      const res = await fetch(`${SERVER_URL}/payment/withdraw`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ socketId: this.socketId, toAddress, amount }),
-      });
-      const data = await res.json();
-
-      if (data.ok) {
-        const net = data.netAmount ?? (amount - 5);
-        const msg = data.status === 'queued'
-          ? `⏳ ${data.message}`
-          : `✓ Sent $${net.toFixed(2)} USDT${data.mock ? ' (MOCK)' : ''}\nTx: ${data.txid?.slice(0, 22)}…`;
-        this._showResult(msg, true);
-        if (this.onBalanceUpdate) this.onBalanceUpdate(data.newBalance);
-      } else {
-        this._showResult(`✗ ${data.error}`, false);
-      }
-    } catch {
-      this._showResult('Server error — try again', false);
-    }
-
-    btn.setText('WITHDRAW').setStyle({ backgroundColor: '#ff8800' });
-  }
-
-  _showResult(msg, success) {
-    if (this.resultText?.active) {
-      this.resultText.setText(msg).setColor(success ? '#00ff88' : '#ff4444');
+      container.innerHTML = '<div class="wp-empty">Could not load history</div>';
     }
   }
 
-  destroy() {
-    this.hide();
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  _msg(el, text, ok) {
+    el.textContent = text;
+    el.className   = `wp-msg ${ok ? 'ok' : 'err'}`;
   }
+
+  destroy() { this.hide(); }
 }
