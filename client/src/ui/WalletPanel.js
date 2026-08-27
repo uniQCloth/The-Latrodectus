@@ -305,8 +305,8 @@ export default class WalletPanel {
       <button class="wp-btn wp-btn-orange" id="wp-w-btn">WITHDRAW USDT</button>
 
       <div class="wp-rules">
-        $5 fee deducted per withdrawal &nbsp;·&nbsp; Min $10 &nbsp;·&nbsp; Max $2,000/day<br>
-        10 min cooldown between withdrawals &nbsp;·&nbsp; ERC-20 USDT on Ethereum only
+        <strong style="color:#aaa;">$5 service fee goes to the house on every withdrawal, regardless of amount.</strong><br>
+        Min $10 &nbsp;·&nbsp; Max $2,000/day &nbsp;·&nbsp; 10 min cooldown &nbsp;·&nbsp; ERC-20 USDT · Ethereum only
       </div>
       <div class="wp-msg" id="wp-w-msg"></div>
     `;
