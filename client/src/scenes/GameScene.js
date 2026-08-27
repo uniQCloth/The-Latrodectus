@@ -1877,6 +1877,7 @@ export default class GameScene extends Phaser.Scene {
     // Movement + camera
     if (this.serverMode) {
       this.autoClimbStep();
+      if (this.spider?.isAlive) this.spider.update();
     } else {
       this.spider.setAirborne();
       if (this.spider?.isAlive) {
