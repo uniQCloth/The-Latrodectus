@@ -69,7 +69,8 @@ export default class UsernameScene extends Phaser.Scene {
 
     // Status text
     this._statusText = this.add.text(width / 2, height * 0.41, '', {
-      fontSize: '11px', color: '#ff4444', align: 'center', wordWrap: { width: cardW - 30 },
+      fontSize: '14px', fontFamily: 'Arial Black, sans-serif',
+      color: '#ff4444', align: 'center', wordWrap: { width: cardW - 30 },
     }).setOrigin(0.5);
 
     // Build fields based on mode
