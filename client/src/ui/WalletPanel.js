@@ -46,8 +46,8 @@ export default class WalletPanel {
     this.elements = [];
 
     const { width, height } = this.scene.scale;
-    const panelW = Math.min(width - 20, 440);
-    const panelH = 420;
+    const panelW = Math.min(width - 20, 460);
+    const panelH = 500;
     const panelX = width / 2;
     const panelY = height / 2;
 
@@ -123,51 +123,86 @@ export default class WalletPanel {
     const token   = this.depositInfo?.token || 'USDT-ERC20';
     const chain   = this.depositInfo?.chain || 'Ethereum';
 
-    add(this.scene.add.text(cx, y, `Send ${token} (${chain}) to this address:`, {
-      fontSize: '13px', color: '#aaaaaa',
+    add(this.scene.add.text(cx, y, 'HOW TO DEPOSIT USDT', {
+      fontSize: '13px', fontFamily: 'Arial Black, sans-serif', color: '#00ff88',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
+    // Step 1
+    add(this.scene.add.text(x, y + 20, '① SEND USDT TO THIS ADDRESS', {
+      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
+    }).setScrollFactor(0).setDepth(32));
+
+    add(this.scene.add.text(x, y + 33, '⚠ Ethereum network only — ERC-20 USDT — minimum $10', {
+      fontSize: '10px', color: '#ff4400',
+    }).setScrollFactor(0).setDepth(32));
+
     // House address box
-    const addrBg = this.scene.add.rectangle(cx, y + 30, w, 32, 0x1a1a1a)
-      .setScrollFactor(0).setDepth(32).setStrokeStyle(1, 0x333333);
+    const addrBg = this.scene.add.rectangle(cx, y + 56, w, 30, 0x0d1a0d)
+      .setScrollFactor(0).setDepth(32).setStrokeStyle(1, 0x00aa44);
     add(addrBg);
 
-    const addrText = this.scene.add.text(cx, y + 30, address, {
+    const addrText = this.scene.add.text(cx, y + 52, address, {
       fontSize: '10px', color: '#00ff88', fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(33);
     add(addrText);
 
-    // Instructions
-    add(this.scene.add.text(cx, y + 60,
-      `1. Send USDT-ERC20 (Ethereum) to address above\n2. Copy your transaction hash (0x…)\n3. Enter tx hash + amount below and click verify`,
-      { fontSize: '12px', color: '#888888', align: 'center' }
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(32));
+    // Copy address button
+    const copyDom = this.scene.add.dom(cx, y + 74).createFromHTML(
+      `<button style="padding:4px 18px;background:#00aa44;color:#000;border:none;border-radius:4px;
+        font-size:11px;font-weight:bold;cursor:pointer;font-family:Arial Black,sans-serif;
+        letter-spacing:.5px;">📋 COPY ADDRESS</button>`
+    ).setScrollFactor(0).setDepth(33);
+    copyDom.node.querySelector('button').addEventListener('click', () => {
+      navigator.clipboard.writeText(address).then(() => {
+        const btn = copyDom.node.querySelector('button');
+        btn.textContent = '✓ COPIED!';
+        btn.style.background = '#00ff88';
+        setTimeout(() => { btn.textContent = '📋 COPY ADDRESS'; btn.style.background = '#00aa44'; }, 2000);
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = address; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        const btn = copyDom.node.querySelector('button');
+        btn.textContent = '✓ COPIED!';
+        setTimeout(() => { btn.textContent = '📋 COPY ADDRESS'; }, 2000);
+      });
+    });
+    add(copyDom);
 
-    // TXID input (HTML overlay)
-    add(this.scene.add.text(cx, y + 92,
-      '⚠ ETHEREUM NETWORK ONLY — ERC-20 USDT  •  Min deposit $10',
-      { fontSize: '11px', color: '#ff6600', align: 'center' }
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(32));
+    // Step 2
+    add(this.scene.add.text(x, y + 96, '② COPY YOUR TRANSACTION HASH', {
+      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
+    }).setScrollFactor(0).setDepth(32));
 
-    add(this.scene.add.text(cx, y + 108, 'Transaction Hash (0x…):', {
-      fontSize: '12px', color: '#aaaaaa',
+    add(this.scene.add.text(x, y + 109,
+      'After sending: MetaMask → Activity → tap the tx → copy the hash (0x…)',
+      { fontSize: '10px', color: '#666666' }
+    ).setScrollFactor(0).setDepth(32));
+
+    // Step 3
+    add(this.scene.add.text(x, y + 126, '③ ENTER HASH + AMOUNT AND VERIFY', {
+      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
+    }).setScrollFactor(0).setDepth(32));
+
+    add(this.scene.add.text(cx, y + 140, 'Transaction Hash (0x…):', {
+      fontSize: '11px', color: '#aaaaaa',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
-    const txidInput = this._createInput(cx, y + 128, w, 'Paste TXID here…');
+    const txidInput = this._createInput(cx, y + 158, w, 'Paste transaction hash here (0x…)');
     add(txidInput.el);
 
-    add(this.scene.add.text(cx, y + 158, 'Amount (USDT):', {
-      fontSize: '12px', color: '#aaaaaa',
+    add(this.scene.add.text(cx, y + 182, 'Amount you sent (USDT):', {
+      fontSize: '11px', color: '#aaaaaa',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
-    const amtInput = this._createInput(cx, y + 178, w * 0.4, '0.00');
+    const amtInput = this._createInput(cx - w * 0.15, y + 200, w * 0.55, 'e.g. 50');
     add(amtInput.el);
 
     // Submit button
-    const submitBtn = this.scene.add.text(cx, y + 215, 'VERIFY & CREDIT', {
-      fontSize: '16px', fontFamily: 'Arial Black, sans-serif',
+    const submitBtn = this.scene.add.text(cx, y + 236, '  VERIFY & CREDIT BALANCE  ', {
+      fontSize: '15px', fontFamily: 'Arial Black, sans-serif',
       color: '#000000', backgroundColor: '#00ff88',
-      padding: { x: 20, y: 10 },
+      padding: { x: 16, y: 10 },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32).setInteractive({ useHandCursor: true });
 
     submitBtn.on('pointerdown', () => {
@@ -177,7 +212,7 @@ export default class WalletPanel {
     submitBtn.on('pointerout', () => submitBtn.setStyle({ backgroundColor: '#00ff88' }));
     add(submitBtn);
 
-    this.resultText = this.scene.add.text(cx, y + 255, '', {
+    this.resultText = this.scene.add.text(cx, y + 278, '', {
       fontSize: '12px', color: '#00ff88', align: 'center',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
     add(this.resultText);
@@ -189,48 +224,63 @@ export default class WalletPanel {
     const MIN = 10;
     const MAX_DAILY = 2000;
 
-    add(this.scene.add.text(cx, y, 'Withdraw USDT-ERC20 to your Ethereum wallet:', {
-      fontSize: '13px', color: '#aaaaaa',
+    // ── Header ────────────────────────────────────────────────────────────────
+    add(this.scene.add.text(cx, y, 'HOW TO WITHDRAW YOUR USDT', {
+      fontSize: '13px', fontFamily: 'Arial Black, sans-serif', color: '#00ff88',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
 
-    add(this.scene.add.text(cx, y + 22, 'Your Ethereum address (0x…):', {
-      fontSize: '12px', color: '#888888',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
+    // ── Step 1 ────────────────────────────────────────────────────────────────
+    add(this.scene.add.text(x, y + 20, '① ENTER YOUR WALLET ADDRESS', {
+      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
+    }).setScrollFactor(0).setDepth(32));
 
-    const addrInput = this._createInput(cx, y + 42, w, '0xYourEthereumAddressHere…');
+    add(this.scene.add.text(x, y + 34, 'Open MetaMask (or any Ethereum wallet) and copy your address.', {
+      fontSize: '10px', color: '#666666',
+    }).setScrollFactor(0).setDepth(32));
+
+    const addrInput = this._createInput(cx, y + 56, w, '0x… paste your Ethereum address here');
     add(addrInput.el);
 
-    add(this.scene.add.text(cx, y + 68, `Amount to withdraw (USDT) — min $${MIN}:`, {
-      fontSize: '12px', color: '#888888',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(32));
+    // ── Step 2 ────────────────────────────────────────────────────────────────
+    add(this.scene.add.text(x, y + 80, '② ENTER AMOUNT (USDT)', {
+      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
+    }).setScrollFactor(0).setDepth(32));
 
-    const amtInput = this._createInput(cx, y + 88, w * 0.38, '10.00');
+    add(this.scene.add.text(x, y + 93, `Minimum $${MIN} USDT. A $${FEE} flat fee is deducted per withdrawal.`, {
+      fontSize: '10px', color: '#666666',
+    }).setScrollFactor(0).setDepth(32));
+
+    const amtInput = this._createInput(cx - w * 0.18, y + 114, w * 0.55, 'Amount in USDT, e.g. 50');
     add(amtInput.el);
 
-    // Live fee breakdown — updates as user types
-    const feeText = this.scene.add.text(cx, y + 112,
-      `$${FEE} transaction fee  →  you receive $${MIN - FEE} USDT`,
-      { fontSize: '11px', color: '#ff8800', align: 'center' }
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(32);
-    add(feeText);
+    // Live fee calculator
+    const feeBox = this.scene.add.text(cx + w * 0.27, y + 114, `You receive:\n$${MIN - FEE}.00`, {
+      fontSize: '11px', color: '#00ff88', align: 'center',
+      backgroundColor: '#002211', padding: { x: 8, y: 6 },
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
+    add(feeBox);
 
-    add(this.scene.add.text(cx, y + 130,
-      `• Min $${MIN}  • Max $${MAX_DAILY}/day  • $${FEE} fee per withdrawal  • 10 min cooldown`,
-      { fontSize: '10px', color: '#555555', align: 'center' }
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(32));
-
-    // Update fee text as amount changes
-    const amtEl = amtInput.dom;
-    amtEl.addEventListener('input', () => {
-      const v = parseFloat(amtEl.value) || 0;
+    amtInput.dom.addEventListener('input', () => {
+      const v = parseFloat(amtInput.dom.value) || 0;
       const net = Math.max(0, v - FEE);
-      feeText.setText(`$${FEE} transaction fee  →  you receive $${net.toFixed(2)} USDT`);
+      feeBox.setText(`You receive:\n$${net.toFixed(2)}`);
+      feeBox.setColor(v >= MIN ? '#00ff88' : '#ff4444');
     });
 
-    const withdrawBtn = this.scene.add.text(cx, y + 158, 'WITHDRAW', {
-      fontSize: '16px', fontFamily: 'Arial Black, sans-serif',
+    // ── Step 3 ────────────────────────────────────────────────────────────────
+    add(this.scene.add.text(x, y + 140, '③ CONFIRM & SEND', {
+      fontSize: '11px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
+    }).setScrollFactor(0).setDepth(32));
+
+    add(this.scene.add.text(x, y + 153,
+      'USDT-ERC20 will be sent to your address on the Ethereum network.',
+      { fontSize: '10px', color: '#666666' }
+    ).setScrollFactor(0).setDepth(32));
+
+    const withdrawBtn = this.scene.add.text(cx, y + 178, '  WITHDRAW USDT  ', {
+      fontSize: '15px', fontFamily: 'Arial Black, sans-serif',
       color: '#000000', backgroundColor: '#ff8800',
-      padding: { x: 24, y: 10 },
+      padding: { x: 20, y: 10 },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32).setInteractive({ useHandCursor: true });
 
     withdrawBtn.on('pointerdown', () => {
@@ -240,7 +290,13 @@ export default class WalletPanel {
     withdrawBtn.on('pointerout', () => withdrawBtn.setStyle({ backgroundColor: '#ff8800' }));
     add(withdrawBtn);
 
-    this.resultText = this.scene.add.text(cx, y + 205, '', {
+    // ── Rules summary ─────────────────────────────────────────────────────────
+    add(this.scene.add.text(cx, y + 214,
+      `$${FEE} fee  •  $${MIN} min  •  $${MAX_DAILY}/day max  •  10 min cooldown  •  ERC-20 USDT only`,
+      { fontSize: '10px', color: '#444444', align: 'center' }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(32));
+
+    this.resultText = this.scene.add.text(cx, y + 240, '', {
       fontSize: '12px', color: '#00ff88', align: 'center', wordWrap: { width: w },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
     add(this.resultText);
