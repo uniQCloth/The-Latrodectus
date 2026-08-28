@@ -230,6 +230,7 @@ export default class GameScene extends Phaser.Scene {
     gfx.y = Phaser.Math.Between(120, height - 120);
     let rLeg = 0;
     let dir  = 1;
+    let _rDrawTick = 0;
 
     const draw = () => {
       gfx.clear();
@@ -253,7 +254,7 @@ export default class GameScene extends Phaser.Scene {
       this.tweens.add({
         targets: gfx, y: gfx.y + dist,
         duration: Phaser.Math.Between(180, 360), ease: 'Linear',
-        onUpdate: () => { rLeg += 0.25; draw(); },
+        onUpdate: () => { rLeg += 0.25; if (++_rDrawTick % 4 === 0) draw(); },
         onComplete: () => {
           this.time.delayedCall(Phaser.Math.Between(80, 400), () => { draw(); if (gfx.active) step(); });
         },
@@ -271,6 +272,7 @@ export default class GameScene extends Phaser.Scene {
     const segs = Phaser.Math.Between(9, 13);
     let tick = 0;
     let dir  = 1;
+    let _cDrawTick = 0;
 
     const draw = () => {
       gfx.clear();
@@ -297,7 +299,7 @@ export default class GameScene extends Phaser.Scene {
       this.tweens.add({
         targets: gfx, y: gfx.y + dist,
         duration: Phaser.Math.Between(250, 500), ease: 'Linear',
-        onUpdate: () => { tick += 0.2; draw(); },
+        onUpdate: () => { tick += 0.2; if (++_cDrawTick % 4 === 0) draw(); },
         onComplete: () => {
           this.time.delayedCall(Phaser.Math.Between(80, 320), () => { draw(); if (gfx.active) step(); });
         },
@@ -314,6 +316,7 @@ export default class GameScene extends Phaser.Scene {
     gfx.x = Phaser.Math.Clamp(startX, innerL, innerR);
     gfx.y = Phaser.Math.Between(80, height - 80);
     let fTick = 0;
+    let _fDrawTick = 0;
     const flapRate = Phaser.Math.FloatBetween(0.35, 0.55);
 
     const draw = () => {
@@ -342,7 +345,7 @@ export default class GameScene extends Phaser.Scene {
       const dur = Phaser.Math.Between(400, 900);
       this.tweens.add({
         targets: gfx, x: nx, y: ny, duration: dur, ease: 'Sine.easeInOut',
-        onUpdate: () => { fTick += 0.18; draw(); },
+        onUpdate: () => { fTick += 0.18; if (++_fDrawTick % 4 === 0) draw(); },
         onComplete: () => {
           this.time.delayedCall(Phaser.Math.Between(100, 500), () => { draw(); if (gfx.active) step(); });
         },
@@ -1364,7 +1367,7 @@ export default class GameScene extends Phaser.Scene {
     // Animate drip inside the bathroom view
     let dropT = 0;
     const dropUpdate = this.time.addEvent({
-      delay: 16,
+      delay: 50,
       loop: true,
       callback: () => {
         dropT += 0.04;
@@ -1542,8 +1545,8 @@ export default class GameScene extends Phaser.Scene {
     this._waterFg.fillStyle(fg, 0.78);
     this._waterFg.beginPath();
     let first = true;
-    for (let xi = 0; xi <= 26; xi++) {
-      const wx = PIPE_WALL + (innerW / 26) * xi;
+    for (let xi = 0; xi <= 12; xi++) {
+      const wx = PIPE_WALL + (innerW / 12) * xi;
       const wy = surfaceY - 10 + Math.sin(t + xi * 0.42) * 7 + Math.cos(t * 0.75 + xi * 0.28) * 4;
       if (first) { this._waterFg.moveTo(wx, wy); first = false; }
       else this._waterFg.lineTo(wx, wy);
@@ -1921,9 +1924,8 @@ export default class GameScene extends Phaser.Scene {
   update(time, delta) {
     // Ambient debris runs regardless of game state (between rounds too)
     this._animTimer += delta;
-    if (this._animTimer > 850) {
+    if (this._animTimer > 1500) {
       this._animTimer = 0;
-      this.spawnAmbientAnim();
       this.spawnAmbientAnim();
     }
     this._bathroomTimer -= delta;

@@ -707,5 +707,13 @@ async function seedAdminAccount() {
     console.log(`   History:     http://localhost:${PORT}/history`);
     console.log(`   Leaderboard: http://localhost:${PORT}/leaderboard`);
     console.log(`   DB mode:     ${db.isEnabled() ? 'PostgreSQL' : 'in-memory'}\n`);
+
+    // Keep Render free tier awake — self-ping every 4 minutes
+    const selfUrl = process.env.RENDER_EXTERNAL_URL;
+    if (selfUrl) {
+      setInterval(() => {
+        http.get(`${selfUrl}/health`).on('error', () => {});
+      }, 4 * 60 * 1000);
+    }
   });
 })();
