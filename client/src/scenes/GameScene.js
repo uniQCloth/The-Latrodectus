@@ -1912,11 +1912,14 @@ export default class GameScene extends Phaser.Scene {
     const body = this.spider.getBody();
     const { height } = this.scale;
     const targetY = this.groundY - (this.serverTiles + Math.floor(this._magicTileBonus)) * 10;
-    const newY = Phaser.Math.Linear(body.y, targetY, 0.3);
-    // Only update Y — player controls horizontal swing, server controls climb height
+    // Small lerp keeps spider in continuous motion between server ticks (100ms each)
+    // — never snaps, never freezes, always chasing the target smoothly
+    const newY = Phaser.Math.Linear(body.y, targetY, 0.07);
     body.setPosition(body.x, newY);
     body.setVelocityY(0);
-    this.cameras.main.scrollY = body.y - height / 2;
+    // Camera with slight cinematic lag — hides any remaining stutter
+    const cam = this.cameras.main;
+    cam.scrollY = Phaser.Math.Linear(cam.scrollY, newY - height / 2, 0.10);
   }
 
   // ── Main update ──────────────────────────────────────────────────────────
@@ -1952,7 +1955,7 @@ export default class GameScene extends Phaser.Scene {
       this.spider.setAirborne();
       if (this.spider?.isAlive) {
         const targetScrollY = this.spider.getBody().y - height / 2;
-        this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.1);
+        this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.12);
       }
     }
 

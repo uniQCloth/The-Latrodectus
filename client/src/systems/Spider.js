@@ -16,8 +16,8 @@ export default class Spider {
     this.sprite = scene.physics.add.image(x, y, '__DEFAULT').setVisible(false);
     this.sprite.setCollideWorldBounds(false);
     this.sprite.setSize(36, 48);
-    this.sprite.setDragX(600);
-    this.sprite.setMaxVelocity(300, 900);
+    this.sprite.setDragX(380);
+    this.sprite.setMaxVelocity(240, 900);
 
     // Visual representation — screen-space so they're never culled by camera
     this.gfx     = scene.add.graphics().setScrollFactor(0).setDepth(10);
@@ -69,11 +69,13 @@ export default class Spider {
     const leftDown  = this.cursors.left.isDown  || this.wasd.left.isDown  || this.touchLeft;
     const rightDown = this.cursors.right.isDown || this.wasd.right.isDown || this.touchRight;
 
-    // Horizontal swing
+    // Horizontal swing — acceleration model gives natural pendulum feel
     if (leftDown) {
-      this.sprite.setVelocityX(-160);
+      this.sprite.setAccelerationX(-1400);
     } else if (rightDown) {
-      this.sprite.setVelocityX(160);
+      this.sprite.setAccelerationX(1400);
+    } else {
+      this.sprite.setAccelerationX(0);
     }
 
     // Clamp spider inside pipe walls — half-body (18px) + wall thickness (68px)
@@ -89,11 +91,11 @@ export default class Spider {
       this.sprite.setVelocityX(0);
     }
 
-    // Slippery platform reduces drag
+    // Slippery platform reduces drag — feels like ice, acceleration unchanged
     if (this.currentPlatform?.platformType === PLATFORM_TYPES.SLIPPERY) {
-      this.sprite.setDragX(80);
+      this.sprite.setDragX(40);
     } else {
-      this.sprite.setDragX(600);
+      this.sprite.setDragX(380);
     }
 
     // Update tile height (how high spider has climbed)
