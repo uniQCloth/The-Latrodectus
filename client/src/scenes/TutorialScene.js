@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 const SLIDES = [
   {
     title: 'HOW TO MOVE THE SPIDER',
-    caption: 'Mobile: tap the left or right side of the screen to move. Desktop: use the ← → arrow keys or A / D. Tap center or press ↑ / W to jump.',
+    caption: 'Mobile: tap the left or right side of the screen to move. Desktop: use the ← → arrow keys or A / D.',
     draw: '_drawControlsSlide',
   },
   {
@@ -233,12 +233,6 @@ export default class TutorialScene extends Phaser.Scene {
     g.lineStyle(1.5, 0xff2200, 0.35);
     g.strokeRect(x + 18, zoneY, w * 0.38 - 18, zoneH);
 
-    // Center zone
-    g.fillStyle(0xffaa00, 0.10);
-    g.fillRect(x + w * 0.38, zoneY, w * 0.24, zoneH);
-    g.lineStyle(1.5, 0xffaa00, 0.35);
-    g.strokeRect(x + w * 0.38, zoneY, w * 0.24, zoneH);
-
     // Right zone
     g.fillStyle(0xff2200, 0.10);
     g.fillRect(x + w * 0.62, zoneY, w * 0.38 - 18, zoneH);
@@ -248,11 +242,9 @@ export default class TutorialScene extends Phaser.Scene {
     // Zone icons
     const leftZoneLabel = this.add.text(x + w * 0.19, zoneY + zoneH / 2 - 14, '👈', { fontSize: '26px' }).setOrigin(0.5);
     const leftArrow     = this.add.text(x + w * 0.19, zoneY + zoneH / 2 + 16, '←', { fontSize: '22px', color: '#ff4444', fontFamily: 'Arial Black, sans-serif' }).setOrigin(0.5);
-    const jumpLabel     = this.add.text(cx,            zoneY + zoneH / 2 - 14, '👆', { fontSize: '26px' }).setOrigin(0.5);
-    const jumpText      = this.add.text(cx,            zoneY + zoneH / 2 + 16, 'JUMP', { fontSize: '13px', color: '#ffaa00', fontFamily: 'Arial Black, sans-serif' }).setOrigin(0.5);
     const rightZoneLabel= this.add.text(x + w * 0.81, zoneY + zoneH / 2 - 14, '👉', { fontSize: '26px' }).setOrigin(0.5);
     const rightArrow    = this.add.text(x + w * 0.81, zoneY + zoneH / 2 + 16, '→', { fontSize: '22px', color: '#ff4444', fontFamily: 'Arial Black, sans-serif' }).setOrigin(0.5);
-    this._slideObjects.push(leftZoneLabel, leftArrow, jumpLabel, jumpText, rightZoneLabel, rightArrow);
+    this._slideObjects.push(leftZoneLabel, leftArrow, rightZoneLabel, rightArrow);
 
     // Mobile label
     const mobileLabel = this.add.text(cx, zoneY - 14, '📱  MOBILE — TAP ZONES', {
@@ -300,19 +292,14 @@ export default class TutorialScene extends Phaser.Scene {
       this._slideObjects.push(kt);
     };
 
-    // Arrow keys row 1: ↑ centred above ← ↓ →
-    drawKey(keyCX, kRow1Y, '↑', '#00ff88');
-    // Arrow keys row 2
-    drawKey(keyCX - keySize - keyGap, kRow2Y, '←', '#ff4444');
-    drawKey(keyCX,                    kRow2Y, '↓', '#555555');
-    drawKey(keyCX + keySize + keyGap, kRow2Y, '→', '#ff4444');
+    // Arrow keys: ← →
+    drawKey(keyCX - keySize - keyGap, kRow1Y, '←', '#ff4444');
+    drawKey(keyCX + keySize + keyGap, kRow1Y, '→', '#ff4444');
 
-    // WASD block to the left
+    // WASD block to the left — A / D only
     const wasdCX = keyCX - (keySize + keyGap) * 3.2;
-    drawKey(wasdCX, kRow1Y, 'W', '#00ff88');
-    drawKey(wasdCX - keySize - keyGap, kRow2Y, 'A', '#ff4444');
-    drawKey(wasdCX,                    kRow2Y, 'S', '#555555');
-    drawKey(wasdCX + keySize + keyGap, kRow2Y, 'D', '#ff4444');
+    drawKey(wasdCX - keySize - keyGap, kRow1Y, 'A', '#ff4444');
+    drawKey(wasdCX + keySize + keyGap, kRow1Y, 'D', '#ff4444');
 
     // "or" between WASD and arrows
     const orT = this.add.text(keyCX - (keySize + keyGap) * 1.5, kRow2Y + keySize / 2, 'or', {

@@ -74,7 +74,7 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Camera — fixed position, spider centered in frame ──────
     this.camFixed = true;
-    this._camScrollY = this.groundY - height * 0.35;
+    this._camScrollY = this.groundY - height * 0.5;
     this.cameras.main.scrollY = this._camScrollY;
 
     // ── Colliders ─────────────────────────────────────────────────────────
@@ -1980,8 +1980,13 @@ export default class GameScene extends Phaser.Scene {
 
       if (this._waterSurfaceY === null) this._waterSurfaceY = height * 0.85;
 
-      const riseRate = 1.5 + Math.pow(Math.min(mult, 150), 0.65) * 0.9;
-      const floorY = height * 0.25;
+      const spiderScreenY = this.groundY - this._camScrollY;
+      const safeZone = 80;
+      const baseRate = 1.5 + Math.pow(Math.min(mult, 150), 0.65) * 0.9;
+      const gap = this._waterSurfaceY - spiderScreenY;
+      const proximityFactor = Math.min(1, Math.max(0, (gap - safeZone) / 150));
+      const riseRate = baseRate * Math.max(0.015, proximityFactor);
+      const floorY = spiderScreenY + safeZone;
 
       this._waterSurfaceY = Math.max(floorY, this._waterSurfaceY - riseRate * delta / 1000);
       this._drawPersistentWater(this._waterSurfaceY);
