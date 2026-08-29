@@ -43,7 +43,20 @@ All notable changes to The Latrodectus.
 - `Platform.js` — adapted for fixed view: `extendWorld()`/`recyclePlatforms()` instead of camera-following, platforms within `VIEW_RANGE`
 - `GameScene.js` — fixed camera (`_camScrollY`), water alpha reduced, `autoClimbStep()` simplified, update loop adapted for fixed view
 
-## [Unreleased] — 2026-08-22 / 2026-08-23
+## [v0.12] — 2026-08-29 / Parallax Scrolling, Water Oscillation, Pipe Burst
+
+### Changed — Core Gameplay
+- **Parallax scrolling background** — pipe interior scrolls downward as the spider climbs, creating the illusion of upward movement
+- **Water oscillates up and down** during normal gameplay; only surges rapidly during a crash
+- **Spider swept off web on crash** — the moment water touches the spider, it gets knocked off the silk and carried off screen by the surging water
+- **Pipe burst animation** — when water reaches the spider, the pipe walls crack and burst open, water explodes outward, and the spider is thrown off screen
+- **Crash shows multiplier** — displays the crash multiplier on screen, then starts a new round with a betting countdown timer
+- **Full swing range** — spider can now swing from both pipe walls across the entire width, not just a quarter to the left
+- **Longer silk string** — web strand extended to 70px so the spider visibly hangs from it with pendulum sway
+
+### Files Changed
+- `Spider.js` — knockOffScreen() for crash sweep-off, longer silk (70px), full width swing, pendulum sway
+- `GameScene.js` — parallax scrolling (_viewScrollY), water oscillation (_waterBaseY, _waterPhase), _pipeBurst() method, _startBettingCountdown(), crash multiplier display
 
 ### Added
 
