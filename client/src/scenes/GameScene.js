@@ -1577,10 +1577,15 @@ export default class GameScene extends Phaser.Scene {
     this._waterFg.setDepth(20);
 
     const startY = this._waterSurfaceY ?? height * 0.82;
-    // Spider is always at this screen Y in the new fixed-spider design
     const spiderScreenY = this.groundY - this._camScrollY;
     const proxy  = { y: startY };
-    const draw   = () => { this._waterSurfaceY = proxy.y; this._drawPersistentWater(proxy.y); };
+    // Capture gen so the per-frame draw stops the moment this surge is invalidated
+    const myGen  = floodGen;
+    const draw   = () => {
+      if (this._floodGen !== myGen) return;
+      this._waterSurfaceY = proxy.y;
+      this._drawPersistentWater(proxy.y);
+    };
 
     // Phase 1 — surge to spider's feet (fast, Power4)
     this.tweens.add({
@@ -1969,9 +1974,9 @@ export default class GameScene extends Phaser.Scene {
       this.spider.update();
     }
 
-    // Water rising
-    if (this.serverMode && this.spider?.isAlive && !this._waterSurging) {
-      const mult = this._serverMultiplier || 1;
+    // Water rising — only during an active round (mult > 1 means server has ticked)
+    if (this.serverMode && this.spider?.isAlive && !this._waterSurging && this._serverMultiplier > 1) {
+      const mult = this._serverMultiplier;
 
       if (this._waterSurfaceY === null) this._waterSurfaceY = height * 0.85;
 
