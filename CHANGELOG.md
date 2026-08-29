@@ -24,6 +24,25 @@ All notable changes to The Latrodectus.
 - `GameScene.js`: viewport-bounded graphics rendering, camera smoothing, all `-60000`/`70000` constants removed
 - `UIScene.js`: font size bumps + stroke on tile/round/connection text
 
+## [v0.11] — 2026-08-28 / Gameplay Refactor — Fixed Camera & Center Spider
+
+### Changed — Core Gameplay
+- **Fixed camera** — camera no longer scrolls with the spider; shows a fixed area of the pipe
+- **Spider stays centered** — spider always at fixed Y position, only swings left/right within pipe walls
+- **Spider periodic drop effect** — spider automatically drops down toward rising water every 3-6s, then climbs back to center (visual-only, adds tension)
+- **Shortened silk/web** — silk stays within the visible frame, no longer extends out of view
+- **Semi-transparent water** — water is now 28-35% opacity, revealing the grey pipe background behind it; water surface is more visible
+- **Pipe background always visible** — grey concrete pipe is always visible through the rising water
+- **Platform manager adapted** — platforms generate within a fixed vertical range and recycle when off-screen; no longer extends infinitely upward
+- **Removed climbing mechanic** — spider no longer climbs upward; multiplier based on worms collected instead of tile height
+- **Ground position lowered** — ground platform now at 65% of screen height instead of bottom
+- **Water rises from below spider** — water starts below the spider and rises toward it; crash surge still works
+
+### Files Changed
+- `Spider.js` — complete rewrite: fixed position, horizontal-only swing, periodic drop animation, short silk, removed climb/tileHeight logic
+- `Platform.js` — adapted for fixed view: `extendWorld()`/`recyclePlatforms()` instead of camera-following, platforms within `VIEW_RANGE`
+- `GameScene.js` — fixed camera (`_camScrollY`), water alpha reduced, `autoClimbStep()` simplified, update loop adapted for fixed view
+
 ## [Unreleased] — 2026-08-22 / 2026-08-23
 
 ### Added

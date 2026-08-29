@@ -21,7 +21,7 @@ export default class GameScene extends Phaser.Scene {
     this.glowWorms   = 0;
     this.serverMode  = socket.connected;
     this.serverTiles = 0;
-    this.groundY     = height - 100;
+    this.groundY = height * 0.65;
     this._animTimer  = 0;
     this._bathroomTimer  = Phaser.Math.Between(15000, 30000); // bathroom openings
     this._floodWarnTimer = Phaser.Math.Between(12000, 22000); // fake flood warnings
@@ -62,6 +62,7 @@ export default class GameScene extends Phaser.Scene {
     // ── Spider ────────────────────────────────────────────────────────────
     this.spider = new Spider(this, width / 2, this.groundY);
     this.spider.getBody().body.setAllowGravity(false);
+    this.spider.startDropCycle();
 
     // ── Hazards ───────────────────────────────────────────────────────────
     this.hazardManager = new HazardManager(this, this.spider);
@@ -71,10 +72,10 @@ export default class GameScene extends Phaser.Scene {
       this.floodScheduler = new FloodScheduler(this, this.spider);
     }
 
-    // ── Camera — smoothly follows spider with cinematic lag ──────────
-    this.camFollowLerp = 0.08;
-    this.camTargetScroll = this.groundY - height / 2;
-    this.cameras.main.scrollY = this.camTargetScroll;
+    // ── Camera — fixed position, spider centered in frame ──────
+    this.camFixed = true;
+    this._camScrollY = this.groundY - height * 0.35;
+    this.cameras.main.scrollY = this._camScrollY;
 
     // ── Colliders ─────────────────────────────────────────────────────────
     this.physics.add.collider(
@@ -1540,12 +1541,12 @@ export default class GameScene extends Phaser.Scene {
     const { bg, fg } = this._waterColorForMultiplier(mult);
 
     this._waterBg.clear();
-    this._waterBg.fillStyle(bg, 0.90);
+    this._waterBg.fillStyle(bg, 0.35);
     this._waterBg.fillRect(PIPE_WALL, surfaceY, innerW, height - surfaceY + 4);
 
     this._waterFg.clear();
     if (surfaceY >= height) return;
-    this._waterFg.fillStyle(fg, 0.78);
+    this._waterFg.fillStyle(fg, 0.28);
     this._waterFg.beginPath();
     let first = true;
     for (let xi = 0; xi <= 12; xi++) {
@@ -1557,7 +1558,7 @@ export default class GameScene extends Phaser.Scene {
     this._waterFg.lineTo(PIPE_WALL + innerW, height + 4);
     this._waterFg.lineTo(PIPE_WALL, height + 4);
     this._waterFg.closePath(); this._waterFg.fillPath();
-    this._waterFg.fillStyle(0xffffff, 0.07);
+    this._waterFg.fillStyle(0xffffff, 0.15);
     this._waterFg.fillRect(PIPE_WALL, surfaceY - 4, innerW, 7);
   }
 
@@ -1878,9 +1879,8 @@ export default class GameScene extends Phaser.Scene {
     this.spider.getBody().setVelocity(0, 0);
     this.spider.getBody().body.setAllowGravity(false);
 
-    // Smooth camera reset to spider position
-    this.camTargetScroll = this.groundY - height / 2;
-    this.cameras.main.scrollY = this.camTargetScroll;
+    // Reset camera to fixed position
+    this.cameras.main.scrollY = this._camScrollY;
 
     this.gameOver    = false;
     this.serverTiles = 0;
@@ -1914,14 +1914,8 @@ export default class GameScene extends Phaser.Scene {
   autoClimbStep() {
     if (!this.serverMode || !this.spider.isAlive) return;
     const body = this.spider.getBody();
-    const { height } = this.scale;
-    const targetY = this.groundY - (this.serverTiles + Math.floor(this._magicTileBonus)) * 10;
-    // Smooth lerp keeps spider in continuous motion between server ticks (100ms each)
-    const newY = Phaser.Math.Linear(body.y, targetY, 0.09);
-    body.setPosition(body.x, newY);
+    // Spider stays at fixed Y — server tiles only affect multiplier, not position
     body.setVelocityY(0);
-    // Camera with cinematic lag — smooth follow, hides any remaining stutter
-    this.camTargetScroll = newY - height / 2;
   }
 
   // ── Main update ──────────────────────────────────────────────────────────
@@ -1942,86 +1936,32 @@ export default class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
 
     const { height } = this.scale;
-    const camera = this.cameras.main;
-    const tiles  = this.serverMode ? this.serverTiles : this.spider.getTileHeight();
+    const tiles = this.serverMode ? this.serverTiles : this.spider.getTileHeight();
 
-    // World management
-    this.platformManager.extendWorld(camera.scrollY);
-    this.platformManager.cullDistantPlatforms(camera.scrollY);
+    // Fixed camera — never scrolls
+    this.cameras.main.scrollY = this._camScrollY;
 
-    // Movement + camera
-    if (this.serverMode) {
-      this.autoClimbStep();
-      if (this.spider?.isAlive) this.spider.update();
-      // Smooth camera follow with cinematic lag
-      this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, this.camTargetScroll, this.camFollowLerp);
-    } else {
-      this.spider.setAirborne();
-      if (this.spider?.isAlive) {
-        const targetScrollY = this.spider.getBody().y - height / 2;
-        this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.14);
-      }
+    // Platform management for fixed view
+    this.platformManager.extendWorld();
+    this.platformManager.recyclePlatforms();
+
+    // Movement + spider update
+    if (this.spider?.isAlive) {
+      this.spider.update();
     }
 
-    if (this.floodScheduler) this.floodScheduler.update(delta);
-
-
-    // Flash flood fake-out warnings (server/playing mode only)
-    if (this.serverMode && this.spider?.isAlive) {
-      this._floodWarnTimer -= delta;
-      if (this._floodWarnTimer <= 0 && !this._floodWarnActive) {
-        this._floodWarnTimer = Phaser.Math.Between(16000, 35000);
-        this.triggerFloodWarning();
-      }
-
-      // Silk slip — spider occasionally loses grip and slides
-      this._slipTimer -= delta;
-      if (this._slipTimer <= 0) {
-        this._slipTimer = Phaser.Math.Between(6000, 14000);
-        this._triggerSilkSlip();
-      }
-
-      // Magic worm spawn timer
-      this._magicWormTimer -= delta;
-      if (this._magicWormTimer <= 0) {
-        // Reset window; only 25% chance it actually appears this cycle
-        this._magicWormTimer = Phaser.Math.Between(120000, 360000);
-        if (Math.random() < 0.25) this._spawnMagicGlowWorm();
-      }
-
-      // Spider milestone color changes (100x / 500x / 1000x)
-      if (this._serverMultiplier > 1) {
-        const ml = this._serverMultiplier >= 1000 ? 3
-                 : this._serverMultiplier >= 500  ? 2
-                 : this._serverMultiplier >= 100  ? 1 : 0;
-        if (ml !== this._spiderMilestoneLevel) {
-          this._spiderMilestoneLevel = ml;
-          this.spider?.setMilestoneLevel(ml);
-        }
-      }
-    }
-
-    // Persistent water — always rising; surges on crash
-    if (this.serverMode && this.spider?.isAlive && !this.gameOver && !this._waterSurging) {
+    // Water rising
+    if (this.serverMode && this.spider?.isAlive && !this._waterSurging) {
       const mult = this._serverMultiplier || 1;
 
-      if (this._waterSurfaceY === null) this._waterSurfaceY = height * 0.88;
+      if (this._waterSurfaceY === null) this._waterSurfaceY = height * 0.85;
 
-      let riseRate, floorY;
-      if (this._crashSurge) {
-        // Pipe burst: water rushes up at full speed — no safety gap
-        riseRate = 600;
-        floorY   = -200;
-      } else {
-        // Normal: slow crawl — water always stays clearly below the spider
-        riseRate = 2 + Math.pow(Math.min(mult, 150), 0.65) * 0.9;
-        floorY = height * 0.75; // water can never rise above bottom 25% of screen
-      }
+      const riseRate = 1.5 + Math.pow(Math.min(mult, 150), 0.65) * 0.9;
+      const floorY = height * 0.25;
 
       this._waterSurfaceY = Math.max(floorY, this._waterSurfaceY - riseRate * delta / 1000);
       this._drawPersistentWater(this._waterSurfaceY);
 
-      // Crash surge: kill spider the moment water reaches it
       if (this._crashSurge && this.spider?.isAlive) {
         const spiderScreenY = this.spider.sprite.y - this.cameras.main.scrollY;
         if (this._waterSurfaceY <= spiderScreenY + 24) {
@@ -2035,7 +1975,7 @@ export default class GameScene extends Phaser.Scene {
       this._waterFg?.clear();
     }
 
-    // Magic tile bonus ramp: grow while worm is active, drain when it leaves
+    // Magic tile bonus ramp
     if (this._magicWormActive) {
       this._magicTileBonus = Math.min(this._magicTileBonus + (4 * delta / 1000), 90);
     } else if (this._magicTileBonus > 0) {
@@ -2049,10 +1989,46 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    // UI (offline only)
+    // UI
     if (!this.serverMode) {
       const multiplier = tileToMultiplier(tiles, this.glowWorms);
       this.scene.get('UIScene')?.events.emit('game:update', { tiles, multiplier, glowWorms: this.glowWorms });
     }
+
+    // Flood warning
+    if (this.serverMode && this.spider?.isAlive) {
+      this._floodWarnTimer -= delta;
+      if (this._floodWarnTimer <= 0 && !this._floodWarnActive) {
+        this._floodWarnTimer = Phaser.Math.Between(16000, 35000);
+        this.triggerFloodWarning();
+      }
+
+      // Silk slip
+      this._slipTimer -= delta;
+      if (this._slipTimer <= 0) {
+        this._slipTimer = Phaser.Math.Between(6000, 14000);
+        this._triggerSilkSlip();
+      }
+
+      // Magic worm spawn timer
+      this._magicWormTimer -= delta;
+      if (this._magicWormTimer <= 0) {
+        this._magicWormTimer = Phaser.Math.Between(120000, 360000);
+        if (Math.random() < 0.25) this._spawnMagicGlowWorm();
+      }
+
+      // Spider milestone color changes
+      if (this._serverMultiplier > 1) {
+        const ml = this._serverMultiplier >= 1000 ? 3
+                 : this._serverMultiplier >= 500  ? 2
+                 : this._serverMultiplier >= 100  ? 1 : 0;
+        if (ml !== this._spiderMilestoneLevel) {
+          this._spiderMilestoneLevel = ml;
+          this.spider?.setMilestoneLevel(ml);
+        }
+      }
+    }
+
+    if (this.floodScheduler) this.floodScheduler.update(delta);
   }
 }

@@ -13,24 +13,36 @@ export default class PlatformManager {
     this.platforms = scene.physics.add.staticGroup();
     this.highestY = scene.scale.height;
     this.disappearTimers = new Map();
-    this.TILE_HEIGHT = 120;
+    this.TILE_HEIGHT = 100;
     this.PLATFORM_WIDTH = 120;
-    this.STAND_LIMIT = 2200; // ms before platform crumbles
+    this.STAND_LIMIT = 2200;
+    this.VIEW_RANGE = 600;
   }
 
   spawnInitialPlatforms() {
     const { width, height } = this.scene.scale;
+    const centerY = height / 2;
 
-    // Ground platform
     this.spawnPlatform(width / 2, height - 40, width, PLATFORM_TYPES.NORMAL, true);
 
-    // First few platforms guaranteed safe
-    for (let i = 1; i <= 6; i++) {
-      const x = Phaser.Math.Between(80, width - 80);
-      this.spawnPlatform(x, height - 40 - i * this.TILE_HEIGHT, this.PLATFORM_WIDTH, PLATFORM_TYPES.NORMAL);
+    for (let i = 1; i <= 8; i++) {
+      const x = Phaser.Math.Between(60, width - 60);
+      const y = centerY + i * this.TILE_HEIGHT;
+      if (y < height - 40) {
+        this.spawnPlatform(x, y, this.PLATFORM_WIDTH, PLATFORM_TYPES.NORMAL);
+      }
     }
 
-    this.highestY = height - 40 - 6 * this.TILE_HEIGHT;
+    for (let i = 1; i <= 6; i++) {
+      const x = Phaser.Math.Between(60, width - 60);
+      const y = centerY - i * this.TILE_HEIGHT;
+      if (y > 20) {
+        this.spawnPlatform(x, y, this.PLATFORM_WIDTH, PLATFORM_TYPES.NORMAL);
+      }
+    }
+
+    this.highestY = centerY - 6 * this.TILE_HEIGHT;
+    this.lowestY = centerY + 6 * this.TILE_HEIGHT;
   }
 
   spawnPlatform(x, y, width = 120, type = PLATFORM_TYPES.NORMAL, isGround = false) {
@@ -46,15 +58,11 @@ export default class PlatformManager {
     const g = this.scene.add.graphics();
     const color = colors[type];
 
-    // Platform body
     g.fillStyle(color, 1);
     g.fillRoundedRect(-width / 2, -8, width, 16, 4);
-
-    // Top highlight
     g.fillStyle(0xffffff, 0.15);
     g.fillRoundedRect(-width / 2, -8, width, 4, 2);
 
-    // Type indicator
     if (type === PLATFORM_TYPES.BOUNCE) {
       g.fillStyle(0x00ff44, 0.6);
       g.fillCircle(0, -12, 5);
@@ -62,19 +70,16 @@ export default class PlatformManager {
       g.fillStyle(0xaaddff, 0.6);
       g.fillRect(-width / 2, -8, width, 3);
     } else if (type === PLATFORM_TYPES.EXPLODING) {
-      // Skull warning icons
       g.fillStyle(0xff0000, 0.8);
       g.fillCircle(-20, -2, 5);
       g.fillCircle(0, -2, 5);
       g.fillCircle(20, -2, 5);
     } else if (type === PLATFORM_TYPES.FIRE) {
-      // Flame streaks
       g.fillStyle(0xff4400, 0.9);
       for (let fx = -width / 2 + 8; fx < width / 2; fx += 16) {
         g.fillTriangle(fx, -8, fx + 6, -20, fx + 12, -8);
       }
     } else if (type === PLATFORM_TYPES.SHOCKING) {
-      // Lightning bolt marks
       g.fillStyle(0xffffff, 0.9);
       g.fillTriangle(-10, -8, -2, -16, 2, -8);
       g.fillTriangle(-2, -8, 6, -16, 10, -8);
@@ -92,15 +97,13 @@ export default class PlatformManager {
     return plat;
   }
 
-  extendWorld(cameraTopY) {
-    const spawnThreshold = cameraTopY - 200;
-    const { width } = this.scene.scale;
+  extendWorld() {
+    const { width, height } = this.scene.scale;
 
-    while (this.highestY > spawnThreshold) {
+    while (this.highestY > height + 100) {
       const x = Phaser.Math.Between(60, width - 60);
       const y = this.highestY - this.TILE_HEIGHT;
 
-      // Weight: 55% normal, 15% bounce, 10% slippery, 10% exploding, 5% fire, 5% shocking
       const roll = Math.random();
       let type = PLATFORM_TYPES.NORMAL;
       if (roll > 0.95) type = PLATFORM_TYPES.SHOCKING;
@@ -112,6 +115,35 @@ export default class PlatformManager {
       this.spawnPlatform(x, y, this.PLATFORM_WIDTH, type);
       this.highestY = y;
     }
+
+    while (this.lowestY < -200) {
+      const x = Phaser.Math.Between(60, width - 60);
+      const y = this.lowestY + this.TILE_HEIGHT;
+
+      const roll = Math.random();
+      let type = PLATFORM_TYPES.NORMAL;
+      if (roll > 0.95) type = PLATFORM_TYPES.SHOCKING;
+      else if (roll > 0.90) type = PLATFORM_TYPES.FIRE;
+      else if (roll > 0.80) type = PLATFORM_TYPES.EXPLODING;
+      else if (roll > 0.70) type = PLATFORM_TYPES.SLIPPERY;
+      else if (roll > 0.55) type = PLATFORM_TYPES.BOUNCE;
+
+      this.spawnPlatform(x, y, this.PLATFORM_WIDTH, type);
+      this.lowestY = y;
+    }
+  }
+
+  recyclePlatforms() {
+    const { height } = this.scene.scale;
+    const bottomLimit = height + 200;
+    const topLimit = -200;
+
+    this.platforms.getChildren().forEach(p => {
+      if (p.y > bottomLimit || p.y < topLimit) {
+        this.disappearTimers.delete(p);
+        p.destroy();
+      }
+    });
   }
 
   startDisappearTimer(platform) {
@@ -157,7 +189,6 @@ export default class PlatformManager {
     this.disappearTimers.delete(platform);
     this.scene.cameras.main.shake(150, 0.005);
 
-    // Crumble particles effect
     const particles = this.scene.add.particles(platform.x, platform.y, null, {
       speed: { min: 50, max: 150 },
       angle: { min: 200, max: 340 },
@@ -169,12 +200,6 @@ export default class PlatformManager {
     this.scene.time.delayedCall(500, () => particles.destroy());
 
     platform.destroy();
-  }
-
-  cullDistantPlatforms(cameraBottomY) {
-    this.platforms.getChildren().forEach(p => {
-      if (p.y > cameraBottomY + 400) p.destroy();
-    });
   }
 
   getGroup() {

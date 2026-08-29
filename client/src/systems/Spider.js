@@ -5,34 +5,33 @@ export default class Spider {
   constructor(scene, x, y) {
     this.scene = scene;
     this.isAlive = true;
-    this.onGround = false;
-    this.currentPlatform = null;
-    this.tileHeight = 0;
-    this.startY = y;
+    this._milestoneLevel = 0;
+    this.fixedY = y;
+    this.visualSlipY = 0;
+    this.dropOffset = 0;
+    this._dropDir = 0;
+    this._dropTimer = 0;
+    this._dropInterval = Phaser.Math.Between(3000, 6000);
+    this._dropDuration = 0;
+    this._isDropping = false;
 
-    this.externalStunned = false; // set by HazardManager for shock stun
+    this.externalStunned = false;
 
-    // Physics body
     this.sprite = scene.physics.add.image(x, y, '__DEFAULT').setVisible(false);
     this.sprite.setCollideWorldBounds(false);
     this.sprite.setSize(36, 48);
     this.sprite.setDragX(380);
     this.sprite.setMaxVelocity(240, 900);
 
-    // Visual representation — screen-space so they're never culled by camera
-    this.gfx     = scene.add.graphics().setScrollFactor(0).setDepth(10);
+    this.gfx = scene.add.graphics().setScrollFactor(0).setDepth(10);
     this.silkGfx = scene.add.graphics().setScrollFactor(0).setDepth(9);
-    this.silkOriginY  = y;
-    this.visualSlipY  = 0;  // screen-space offset applied during silk-slip animation
-    this._milestoneLevel = 0; // 0=normal, 1=100x gold, 2=500x inferno, 3=1000x void
+
     this.drawSpider();
 
-    // Input
     this.cursors = scene.input.keyboard.createCursorKeys();
     this.wasd = scene.input.keyboard.addKeys({ up: 'W', left: 'A', right: 'D' });
     this.setupTouchInput();
 
-    // Track active touches for mobile
     this.touchLeft = false;
     this.touchRight = false;
 
@@ -42,14 +41,12 @@ export default class Spider {
   setupTouchInput() {
     const { width, height } = this.scene.scale;
 
-    // Left zone (left 50% of screen)
     const leftZone = this.scene.add.zone(0, 0, width * 0.5, height)
       .setOrigin(0, 0).setInteractive();
     leftZone.on('pointerdown', () => { this.touchLeft = true; });
     leftZone.on('pointerup', () => { this.touchLeft = false; });
     leftZone.on('pointerout', () => { this.touchLeft = false; });
 
-    // Right zone (right 50%)
     const rightZone = this.scene.add.zone(width * 0.5, 0, width * 0.5, height)
       .setOrigin(0, 0).setInteractive();
     rightZone.on('pointerdown', () => { this.touchRight = true; });
@@ -57,19 +54,25 @@ export default class Spider {
     rightZone.on('pointerout', () => { this.touchRight = false; });
   }
 
+  startDropCycle() {
+    this._dropInterval = Phaser.Math.Between(3000, 6000);
+    this._dropTimer = this._dropInterval;
+    this._isDropping = false;
+    this._dropDir = 0;
+    this._dropDuration = 0;
+  }
+
   update() {
     if (!this.isAlive) return;
 
-    // Stunned (shock) — no player control
     if (this.externalStunned) {
       this.drawSpider();
       return;
     }
 
-    const leftDown  = this.cursors.left.isDown  || this.wasd.left.isDown  || this.touchLeft;
+    const leftDown = this.cursors.left.isDown || this.wasd.left.isDown || this.touchLeft;
     const rightDown = this.cursors.right.isDown || this.wasd.right.isDown || this.touchRight;
 
-    // Horizontal swing — acceleration model gives natural pendulum feel
     if (leftDown) {
       this.sprite.setAccelerationX(-1400);
     } else if (rightDown) {
@@ -78,7 +81,6 @@ export default class Spider {
       this.sprite.setAccelerationX(0);
     }
 
-    // Clamp spider inside pipe walls — half-body (18px) + wall thickness (68px)
     const PIPE_WALL = 68;
     const halfW = 18;
     const minX = PIPE_WALL + halfW;
@@ -91,71 +93,91 @@ export default class Spider {
       this.sprite.setVelocityX(0);
     }
 
-    // Slippery platform reduces drag — feels like ice, acceleration unchanged
     if (this.currentPlatform?.platformType === PLATFORM_TYPES.SLIPPERY) {
       this.sprite.setDragX(40);
     } else {
       this.sprite.setDragX(380);
     }
 
-    // Update tile height (how high spider has climbed)
-    const climbedPixels = this.startY - this.sprite.y;
-    this.tileHeight = Math.max(0, Math.floor(climbedPixels / 10));
+    // Periodic drop toward water then return to center
+    this._dropTimer -= 16;
+    if (!this._isDropping && this._dropTimer <= 0) {
+      this._isDropping = true;
+      this._dropDir = 1;
+      this._dropDuration = 0;
+      sound.playSlip();
+    }
+    if (this._isDropping) {
+      this._dropDuration += 16;
+      const dropDistance = 50;
+      const dropSpeed = 350;
+      const progress = Math.min(this._dropDuration / dropSpeed, 1);
+      if (this._dropDir === 1) {
+        this.dropOffset = Phaser.Math.Linear(0, dropDistance, progress);
+        if (progress >= 1) { this._dropDir = -1; this._dropDuration = 0; }
+      } else {
+        this.dropOffset = Phaser.Math.Linear(dropDistance, 0, progress);
+        if (progress >= 1) {
+          this.dropOffset = 0;
+          this._isDropping = false;
+          this.startDropCycle();
+        }
+      }
+    }
 
-    // Land sound
-    if (this.onGround && this._wasAirborne) sound.playLand();
-    this._wasAirborne = !this.onGround;
+    const targetY = this.fixedY + this.dropOffset;
+    const currentY = this.sprite.y;
+    if (Math.abs(currentY - targetY) > 1) {
+      this.sprite.y = Phaser.Math.Linear(currentY, targetY, 0.15);
+    } else {
+      this.sprite.y = targetY;
+    }
 
-    // Update visuals
+    if (Math.abs(this.sprite.body?.velocity?.x ?? 0) < 5 && !this._isDropping) {
+      this.visualSlipY = 0;
+    }
+
     this.drawSilk();
     this.drawSpider();
-    this.checkFallDeath();
   }
 
   drawSilk() {
-    const camera = this.scene.cameras.main;
-    const sx = this.sprite.x - camera.scrollX;
-    const sy = this.sprite.y - camera.scrollY + this.visualSlipY;
+    const sx = this.sprite.x;
+    const sy = this.sprite.y + this.visualSlipY;
     this.silkGfx.clear();
     if (!this.isAlive) return;
-    const vx = this.sprite.body?.velocity?.x ?? 0;
-    const slipping = this.visualSlipY > 5;
-    this.silkGfx.lineStyle(slipping ? 2.5 : 1.8, slipping ? 0xdddddd : 0xbbbbbb, slipping ? 0.65 : 0.5);
 
-    // Pendulum arc — silk bows opposite to the swing direction
     const anchorX = sx;
-    const anchorY = -60;
-    const tipY    = sy - 14;
-    const ctrlX   = sx - vx * 0.12;                        // lags behind motion
-    const ctrlY   = anchorY + (tipY - anchorY) * 0.42;
+    const anchorY = sy - 30;
+    const tipX = sx;
+    const tipY = sy - 14;
+    const sway = Math.sin(this.scene.time.now * 0.002) * 3;
+    const ctrlX = sx + sway;
+    const ctrlY = anchorY + 8;
 
-    // Quadratic bezier approximated with 10 segments
+    this.silkGfx.lineStyle(1.8, 0xbbbbbb, 0.5);
     this.silkGfx.beginPath();
     this.silkGfx.moveTo(anchorX, anchorY);
     for (let i = 1; i <= 10; i++) {
-      const t  = i / 10;
+      const t = i / 10;
       const mt = 1 - t;
-      this.silkGfx.lineTo(
-        mt * mt * anchorX + 2 * mt * t * ctrlX + t * t * sx,
-        mt * mt * anchorY + 2 * mt * t * ctrlY + t * t * tipY
-      );
+      const x = mt * mt * anchorX + 2 * mt * t * ctrlX + t * t * tipX;
+      const y = mt * mt * anchorY + 2 * mt * t * ctrlY + t * t * tipY;
+      this.silkGfx.lineTo(x, y);
     }
     this.silkGfx.strokePath();
   }
 
   drawSpider() {
-    const camera = this.scene.cameras.main;
-    const sx = this.sprite.x - camera.scrollX;
-    const sy = this.sprite.y - camera.scrollY + this.visualSlipY;
-    const t  = this.scene.time.now;
-
-    // Tilt body based on horizontal velocity — pendulum swing feel
+    const sx = this.sprite.x;
+    const sy = this.sprite.y + this.visualSlipY;
+    const t = this.scene.time.now;
     const vx = this.sprite.body?.velocity?.x ?? 0;
+
     this.gfx.setPosition(sx, sy);
     this.gfx.setAngle(Phaser.Math.Clamp(vx * 0.055, -22, 22));
 
     this.gfx.clear();
-    // Draw relative to (0,0) — gfx is already positioned at spider center
     const x = 0;
     const y = 0;
 
@@ -164,65 +186,53 @@ export default class Spider {
     if (stunned) {
       eyeColor = 0xffff00; bodyColor = 0x1a1a00; outlineColor = 0xaaaa00;
     } else if (this._milestoneLevel >= 3) {
-      // 1000x — void spider: pure black body, magenta aura, cyan eyes
       eyeColor = 0x00ffee; bodyColor = 0x000000; outlineColor = 0xff00cc;
     } else if (this._milestoneLevel >= 2) {
-      // 500x — inferno spider: deep red, orange glow, white-hot eyes
       eyeColor = 0xffffff; bodyColor = 0x1a0000; outlineColor = 0xff6600;
     } else if (this._milestoneLevel >= 1) {
-      // 100x — gilded spider: same body, gold outline and eyes
       eyeColor = 0xffcc00; bodyColor = 0x0d0520; outlineColor = 0xffaa00;
     } else {
       eyeColor = 0xff2200; bodyColor = 0x0d0520; outlineColor = 0x8800aa;
     }
 
-    // Glow under body
     const pulse = 0.3 + Math.sin(t * 0.003) * 0.15;
     this.gfx.fillStyle(outlineColor, pulse * 0.4);
     this.gfx.fillEllipse(x, y + 2, 46, 20);
 
-    // Abdomen (main body)
     this.gfx.fillStyle(bodyColor, 1);
     this.gfx.fillEllipse(x, y + 4, 38, 32);
     this.gfx.lineStyle(1.5, outlineColor, 0.9);
     this.gfx.strokeEllipse(x, y + 4, 38, 32);
 
-    // Hourglass marking on abdomen
     this.gfx.fillStyle(0xff2200, 0.9);
     this.gfx.fillTriangle(x - 6, y, x + 6, y, x, y + 8);
     this.gfx.fillTriangle(x - 6, y + 10, x + 6, y + 10, x, y + 4);
 
-    // Cephalothorax (head section)
     this.gfx.fillStyle(bodyColor, 1);
     this.gfx.fillEllipse(x, y - 16, 26, 20);
     this.gfx.lineStyle(1.5, outlineColor, 0.8);
     this.gfx.strokeEllipse(x, y - 16, 26, 20);
 
-    // Eyes — cluster of 4 (widow has 8 but clustered)
     const eyePulse = 0.85 + Math.sin(t * 0.006) * 0.15;
     this.gfx.fillStyle(eyeColor, eyePulse);
     this.gfx.fillCircle(x - 6, y - 18, 4);
     this.gfx.fillCircle(x + 6, y - 18, 4);
     this.gfx.fillCircle(x - 3, y - 23, 2.5);
     this.gfx.fillCircle(x + 3, y - 23, 2.5);
-    // Glint
     this.gfx.fillStyle(0xffffff, 0.7);
     this.gfx.fillCircle(x - 7, y - 19, 1.2);
     this.gfx.fillCircle(x + 5, y - 19, 1.2);
 
-    // Chelicerae (fangs)
     this.gfx.fillStyle(0x440022, 1);
     this.gfx.fillTriangle(x - 5, y - 26, x - 2, y - 26, x - 4, y - 31);
     this.gfx.fillTriangle(x + 5, y - 26, x + 2, y - 26, x + 4, y - 31);
 
-    // Legs — animated walk cycle
-    const speed = Math.abs(this.sprite.body?.velocity?.x ?? 0);
-    const freq = this.onGround ? 0.012 + speed * 0.00005 : 0.005;
+    const speed = Math.abs(vx);
+    const freq = 0.012 + speed * 0.00005;
     const w = Math.sin(t * freq);
     this.gfx.lineStyle(2, outlineColor, 0.85);
 
     const legDefs = [
-      // [attachX, attachY, midDX, midDY, tipDX, tipDY, phaseOffset]
       [-13, -10, -28, -28, -46, -16, 0],
       [-13, -6,  -30, -4,  -50,  4,  0.5],
       [-13,  2,  -28, 14,  -46, 28, -0.5],
@@ -251,7 +261,6 @@ export default class Spider {
       this.gfx.lineStyle(2, outlineColor, 0.85);
     });
 
-    // Spinnerets (web-spinning organs at back)
     this.gfx.fillStyle(bodyColor, 1);
     this.gfx.fillEllipse(x, y + 20, 12, 8);
   }
@@ -265,22 +274,8 @@ export default class Spider {
   }
 
   setOnGround(platform) {
-    this.onGround = true;
+    // Spider stays at fixed Y — platform collision for horizontal movement only
     this.currentPlatform = platform;
-  }
-
-  setAirborne() {
-    if (this.sprite.body?.velocity?.y < 0) {
-      this.onGround = false;
-      this.currentPlatform = null;
-    }
-  }
-
-  checkFallDeath() {
-    const camera = this.scene.cameras.main;
-    if (this.sprite.y > camera.scrollY + this.scene.scale.height + 100) {
-      this.die('fall');
-    }
   }
 
   die(cause) {
@@ -289,9 +284,7 @@ export default class Spider {
     this.scene.events.emit('spider:died', cause);
 
     if (cause === 'flood') {
-      // Silk snaps instantly as thread breaks under water force
       this.scene.tweens.add({ targets: this.silkGfx, alpha: 0, duration: 80 });
-      // Spider gfx swept straight down by the rushing water, then fades
       this.scene.tweens.add({
         targets: this.gfx,
         y: `+=380`,
@@ -299,7 +292,6 @@ export default class Spider {
         duration: 650,
         ease: 'Power3',
       });
-      // Physics body follows (camera already frozen)
       this.scene.tweens.add({
         targets: this.sprite,
         y: this.sprite.y + 380,
@@ -308,7 +300,6 @@ export default class Spider {
         ease: 'Power3',
       });
     } else {
-      // Standard spin + fall for non-flood deaths
       this.scene.tweens.add({
         targets: this.sprite,
         angle: 720, alpha: 0, y: this.sprite.y + 200, duration: 800, ease: 'Power2',
@@ -319,7 +310,7 @@ export default class Spider {
   }
 
   getTileHeight() {
-    return this.tileHeight;
+    return Math.max(0, Math.floor((this.fixedY - this.sprite.y) / 10));
   }
 
   getPosition() {
