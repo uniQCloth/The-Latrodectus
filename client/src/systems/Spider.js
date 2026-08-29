@@ -188,9 +188,9 @@ export default class Spider {
     this.silkGfx.clear();
     if (!this.isAlive) return;
 
-    // Long web string from spider up to the top of the visible pipe
+    // Web string anchored at top of pipe, hanging all the way down to spider
     const anchorX = sx;
-    const anchorY = sy - 70;
+    const anchorY = 20;
     const tipX = sx;
     const tipY = sy - 14;
 
@@ -198,13 +198,14 @@ export default class Spider {
     const vx = this.sprite.body?.velocity?.x ?? 0;
     const sway = Math.sin(this.scene.time.now * 0.003) * 5 + vx * 0.03;
     const ctrlX = sx + sway;
-    const ctrlY = anchorY + 12;
+    const ctrlY = anchorY + 15;
 
-    this.silkGfx.lineStyle(2, 0xbbbbbb, 0.7);
+    // Thick web strand
+    this.silkGfx.lineStyle(3, 0xcccccc, 0.8);
     this.silkGfx.beginPath();
     this.silkGfx.moveTo(anchorX, anchorY);
-    for (let i = 1; i <= 14; i++) {
-      const t = i / 14;
+    for (let i = 1; i <= 16; i++) {
+      const t = i / 16;
       const mt = 1 - t;
       const x = mt * mt * anchorX + 2 * mt * t * ctrlX + t * t * tipX;
       const y = mt * mt * anchorY + 2 * mt * t * ctrlY + t * t * tipY;
@@ -212,11 +213,17 @@ export default class Spider {
     }
     this.silkGfx.strokePath();
 
-    // Web strand detail
-    this.silkGfx.lineStyle(0.8, 0xcccccc, 0.4);
+    // Fine silk detail strand
+    this.silkGfx.lineStyle(1, 0xdddddd, 0.5);
     this.silkGfx.beginPath();
-    this.silkGfx.moveTo(anchorX, anchorY + 5);
-    this.silkGfx.lineTo(tipX, tipY - 2);
+    this.silkGfx.moveTo(anchorX, anchorY + 4);
+    for (let i = 1; i <= 16; i++) {
+      const t = i / 16;
+      const mt = 1 - t;
+      const x = mt * mt * anchorX + 2 * mt * t * ctrlX + t * t * tipX;
+      const y = mt * mt * anchorY + 2 * mt * t * ctrlY + t * t * tipY;
+      this.silkGfx.lineTo(x, y);
+    }
     this.silkGfx.strokePath();
   }
 
