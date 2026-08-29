@@ -49,22 +49,25 @@ export default class UIScene extends Phaser.Scene {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
     this.tileText = this.add.text(14, 62, 'Tile 0 / 5000', {
-      fontSize: '11px', color: '#888888',
+      fontSize: '12px', color: '#999999',
+      stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
 
     this.wormText = this.add.text(width - 10, 8, '🐛 0/3', {
       fontSize: '14px', color: '#00ff88',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
-    this.roundInfo = this.add.text(width / 2, 90, 'Round #—', {
-      fontSize: '8px', color: '#333333',
+    this.roundInfo = this.add.text(width / 2, 92, 'Round #—', {
+      fontSize: '9px', color: '#444444',
+      stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
     // Connection dot
     this.connDot = this.add.circle(width - 10, height - 112, 5, 0xffaa00)
       .setScrollFactor(0).setDepth(11);
     this.connLabel = this.add.text(width - 18, height - 119, 'CONNECTING', {
-      fontSize: '9px', color: '#ffaa00',
+      fontSize: '10px', color: '#ffaa00',
+      stroke: '#000000', strokeThickness: 2,
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11);
 
     // ── Balance — depth 13 so it always renders above boxes below it ────────

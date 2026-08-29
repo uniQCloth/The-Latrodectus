@@ -4,6 +4,26 @@ All notable changes to The Latrodectus.
 
 ---
 
+## [v0.10] — 2026-08-28 / Visual & Performance Overhaul
+
+### Fixed — Graphics & Rendering
+- **Enabled WebGL antialiasing** (`antialias: true`) — text and graphics are now crisp instead of fuzzy
+- **Disabled pixel rounding** (`roundPixels: false`) — eliminates blur when canvas is FIT-scaled
+- **Added `pixelArt: false`** — smooth bilinear scaling instead of nearest-neighbor
+- **Replaced massive off-screen graphics** — all `fillRect`/`drawPipeSeams` ranges reduced from -60000/70000px to viewport-bounded `height * 3`, eliminating wasteful GPU overdraw
+- **Increased small HUD font sizes** — tile counter, round info, connection label, balance text all bumped up with added stroke for readability
+
+### Fixed — Smoothness & Camera
+- **Added camera follow lerp** — camera now smoothly interpolates to spider position with configurable lag (`camFollowLerp = 0.08`), replacing jarring snaps
+- **Smoothed auto-climb camera** — server mode camera now lerps to target instead of snapping
+- **Improved climb lerp factor** — 0.07 → 0.09 for tighter spider follow
+- **Increased offline camera lerp** — 0.12 → 0.14 for smoother free-climb feel
+
+### Changed
+- `main.js`: `antialias: false` → `antialias: true`, `roundPixels: true` → `roundPixels: false`, added `pixelArt: false`
+- `GameScene.js`: viewport-bounded graphics rendering, camera smoothing, all `-60000`/`70000` constants removed
+- `UIScene.js`: font size bumps + stroke on tile/round/connection text
+
 ## [Unreleased] — 2026-08-22 / 2026-08-23
 
 ### Added

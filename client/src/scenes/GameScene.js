@@ -71,8 +71,10 @@ export default class GameScene extends Phaser.Scene {
       this.floodScheduler = new FloodScheduler(this, this.spider);
     }
 
-    // ── Camera — directly controlled each frame ────────────────────────────
-    this.cameras.main.scrollY = this.groundY - height / 2;
+    // ── Camera — smoothly follows spider with cinematic lag ──────────
+    this.camFollowLerp = 0.08;
+    this.camTargetScroll = this.groundY - height / 2;
+    this.cameras.main.scrollY = this.camTargetScroll;
 
     // ── Colliders ─────────────────────────────────────────────────────────
     this.physics.add.collider(
@@ -109,13 +111,13 @@ export default class GameScene extends Phaser.Scene {
     const bg = this.add.graphics().setDepth(0);
     // Outer wall backing — dark so pipe walls stand out
     bg.fillStyle(0x3a3a3a, 1);
-    bg.fillRect(0, -60000, width, 70000);
+    bg.fillRect(0, -this.scale.height * 3, width, this.scale.height * 6);
     // Inner pipe channel — bright concrete grey
     bg.fillStyle(0x888888, 1);
-    bg.fillRect(PIPE_WALL, -60000, width - PIPE_WALL * 2, 70000);
+    bg.fillRect(PIPE_WALL, -this.scale.height * 3, width - PIPE_WALL * 2, this.scale.height * 6);
     // Subtle centre-line shadow for depth
     bg.fillStyle(0x606060, 0.25);
-    bg.fillRect(width / 2 - 18, -60000, 36, 70000);
+    bg.fillRect(width / 2 - 18, -this.scale.height * 3, 36, this.scale.height * 6);
   }
 
   // ── Pipe seams — WORLD SPACE ────────────────────────────────────────────
@@ -125,6 +127,7 @@ export default class GameScene extends Phaser.Scene {
     const innerL = PIPE_WALL;
     const innerR = width - PIPE_WALL;
     const g = this.add.graphics().setDepth(3);
+    const maxRange = this.groundY + this.scale.height * 4;
 
     // Water-stain / rust streaks on inner walls
     for (let i = 0; i < 130; i++) {
@@ -132,7 +135,7 @@ export default class GameScene extends Phaser.Scene {
       const sx = left
         ? Phaser.Math.Between(innerL, innerL + 24)
         : Phaser.Math.Between(innerR - 24, innerR);
-      const sy  = Phaser.Math.Between(-60000, this.groundY);
+      const sy  = Phaser.Math.Between(-this.scale.height * 3, this.groundY);
       const len = Phaser.Math.Between(8, 55);
       const col = Phaser.Utils.Array.GetRandom([0x666666, 0x5a5a5a, 0x7a5030, 0x505050]);
       g.lineStyle(Phaser.Math.Between(1, 2), col, 0.20 + Math.random() * 0.30);
@@ -140,7 +143,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Horizontal seams every 180 px — create sense of climbing
-    for (let y = this.groundY; y > -60000; y -= 180) {
+    for (let y = this.groundY; y > -this.scale.height * 3; y -= 180) {
       // Dark seam band
       g.fillStyle(0x444444, 1);
       g.fillRect(innerL, y - 3, innerR - innerL, 6);
@@ -153,11 +156,11 @@ export default class GameScene extends Phaser.Scene {
 
     // Centre groove
     g.lineStyle(1, 0x505050, 0.35);
-    g.beginPath(); g.moveTo(width / 2, this.groundY); g.lineTo(width / 2, -60000); g.strokePath();
+    g.beginPath(); g.moveTo(width / 2, this.groundY); g.lineTo(width / 2, -this.scale.height * 3); g.strokePath();
 
-    // ── Static debris stuck to pipe walls ──────────────────────────────
+    // ── Static debris stuck to pipe walls ──────────────────────
     // O-rings / rubber seals at seam points
-    for (let y = this.groundY - 90; y > -60000; y -= Phaser.Math.Between(360, 900)) {
+    for (let y = this.groundY - 90; y > -this.scale.height * 3; y -= Phaser.Math.Between(360, 900)) {
       const side = Math.random() < 0.5 ? innerL + 12 : innerR - 12;
       g.lineStyle(4, 0x333333, 0.9); g.strokeCircle(side, y, 9);
       g.lineStyle(2, 0x555555, 0.5); g.strokeCircle(side, y, 7);
@@ -169,7 +172,7 @@ export default class GameScene extends Phaser.Scene {
       const gx = side
         ? Phaser.Math.Between(innerL + 4, innerL + 20)
         : Phaser.Math.Between(innerR - 20, innerR - 4);
-      const gy = Phaser.Math.Between(-60000, this.groundY);
+      const gy = Phaser.Math.Between(-this.scale.height * 3, this.groundY);
       const col = Phaser.Utils.Array.GetRandom([0xdd88aa, 0xccaaaa, 0xaa9988, 0xbbbbaa]);
       g.fillStyle(col, 0.8);
       g.fillEllipse(gx, gy, Phaser.Math.Between(8, 18), Phaser.Math.Between(6, 12));
@@ -178,7 +181,7 @@ export default class GameScene extends Phaser.Scene {
     // Hair strands draped from seams
     for (let i = 0; i < 25; i++) {
       const hx = Phaser.Math.Between(innerL + 2, innerR - 2);
-      const hy = Phaser.Math.Between(-60000, this.groundY);
+      const hy = Phaser.Math.Between(-this.scale.height * 3, this.groundY);
       const len = Phaser.Math.Between(20, 80);
       const sway = Phaser.Math.Between(-15, 15);
       g.lineStyle(1, 0x221a10, 0.55);
@@ -1875,8 +1878,9 @@ export default class GameScene extends Phaser.Scene {
     this.spider.getBody().setVelocity(0, 0);
     this.spider.getBody().body.setAllowGravity(false);
 
-    // Snap camera to spider — no lerp lag
-    this.cameras.main.scrollY = this.groundY - height / 2;
+    // Smooth camera reset to spider position
+    this.camTargetScroll = this.groundY - height / 2;
+    this.cameras.main.scrollY = this.camTargetScroll;
 
     this.gameOver    = false;
     this.serverTiles = 0;
@@ -1912,14 +1916,12 @@ export default class GameScene extends Phaser.Scene {
     const body = this.spider.getBody();
     const { height } = this.scale;
     const targetY = this.groundY - (this.serverTiles + Math.floor(this._magicTileBonus)) * 10;
-    // Small lerp keeps spider in continuous motion between server ticks (100ms each)
-    // — never snaps, never freezes, always chasing the target smoothly
-    const newY = Phaser.Math.Linear(body.y, targetY, 0.07);
+    // Smooth lerp keeps spider in continuous motion between server ticks (100ms each)
+    const newY = Phaser.Math.Linear(body.y, targetY, 0.09);
     body.setPosition(body.x, newY);
     body.setVelocityY(0);
-    // Camera with slight cinematic lag — hides any remaining stutter
-    const cam = this.cameras.main;
-    cam.scrollY = Phaser.Math.Linear(cam.scrollY, newY - height / 2, 0.10);
+    // Camera with cinematic lag — smooth follow, hides any remaining stutter
+    this.camTargetScroll = newY - height / 2;
   }
 
   // ── Main update ──────────────────────────────────────────────────────────
@@ -1951,11 +1953,13 @@ export default class GameScene extends Phaser.Scene {
     if (this.serverMode) {
       this.autoClimbStep();
       if (this.spider?.isAlive) this.spider.update();
+      // Smooth camera follow with cinematic lag
+      this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, this.camTargetScroll, this.camFollowLerp);
     } else {
       this.spider.setAirborne();
       if (this.spider?.isAlive) {
         const targetScrollY = this.spider.getBody().y - height / 2;
-        this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.12);
+        this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.14);
       }
     }
 
