@@ -110,15 +110,18 @@ export default class GameScene extends Phaser.Scene {
   drawWorldBackground() {
     const { width } = this.scale;
     const bg = this.add.graphics().setDepth(0);
-    // Outer wall backing — dark so pipe walls stand out
+    // Extend far enough that camera scroll never reveals empty space
+    const TOP = -12000;
+    const TOTAL = 24000;
+    // Outer wall backing
     bg.fillStyle(0x3a3a3a, 1);
-    bg.fillRect(0, -this.scale.height * 3, width, this.scale.height * 6);
-    // Inner pipe channel — bright concrete grey
+    bg.fillRect(0, TOP, width, TOTAL);
+    // Inner pipe channel — always grey
     bg.fillStyle(0x888888, 1);
-    bg.fillRect(PIPE_WALL, -this.scale.height * 3, width - PIPE_WALL * 2, this.scale.height * 6);
+    bg.fillRect(PIPE_WALL, TOP, width - PIPE_WALL * 2, TOTAL);
     // Subtle centre-line shadow for depth
     bg.fillStyle(0x606060, 0.25);
-    bg.fillRect(width / 2 - 18, -this.scale.height * 3, 36, this.scale.height * 6);
+    bg.fillRect(width / 2 - 18, TOP, 36, TOTAL);
   }
 
   // ── Pipe seams — WORLD SPACE ────────────────────────────────────────────
@@ -131,12 +134,12 @@ export default class GameScene extends Phaser.Scene {
     const maxRange = this.groundY + this.scale.height * 4;
 
     // Water-stain / rust streaks on inner walls
-    for (let i = 0; i < 130; i++) {
+    for (let i = 0; i < 300; i++) {
       const left = i % 2 === 0;
       const sx = left
         ? Phaser.Math.Between(innerL, innerL + 24)
         : Phaser.Math.Between(innerR - 24, innerR);
-      const sy  = Phaser.Math.Between(-this.scale.height * 3, this.groundY);
+      const sy  = Phaser.Math.Between(-10000, this.groundY);
       const len = Phaser.Math.Between(8, 55);
       const col = Phaser.Utils.Array.GetRandom([0x666666, 0x5a5a5a, 0x7a5030, 0x505050]);
       g.lineStyle(Phaser.Math.Between(1, 2), col, 0.20 + Math.random() * 0.30);
@@ -144,7 +147,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Horizontal seams every 180 px — create sense of climbing
-    for (let y = this.groundY; y > -this.scale.height * 3; y -= 180) {
+    for (let y = this.groundY; y > -10000; y -= 180) {
       // Dark seam band
       g.fillStyle(0x444444, 1);
       g.fillRect(innerL, y - 3, innerR - innerL, 6);
@@ -1574,12 +1577,14 @@ export default class GameScene extends Phaser.Scene {
     this._waterFg.setDepth(20);
 
     const startY = this._waterSurfaceY ?? height * 0.82;
+    // Spider is always at this screen Y in the new fixed-spider design
+    const spiderScreenY = this.groundY - this._camScrollY;
     const proxy  = { y: startY };
     const draw   = () => { this._waterSurfaceY = proxy.y; this._drawPersistentWater(proxy.y); };
 
-    // Phase 1 — surge to spider level (fast, Power4)
+    // Phase 1 — surge to spider's feet (fast, Power4)
     this.tweens.add({
-      targets: proxy, y: height / 2 - 12, duration: 380, ease: 'Power4',
+      targets: proxy, y: spiderScreenY + 10, duration: 420, ease: 'Power4',
       onUpdate: draw,
       onComplete: () => {
         if (this._floodGen !== floodGen) return;
@@ -1676,10 +1681,8 @@ export default class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this._floodWarnActive = false;
     this._floodGen++;           // invalidate any old surge callbacks
-    this._waterSurging = false; // let the update loop take over
-    this._crashSurge   = true;  // signal: water rushes up fast
-
     sound.playJumpScareCrash();
+    this._surgeWaterCrash(this._floodGen);
 
     // Double shake — first crack, then full burst
     this.cameras.main.shake(300, 0.014);
@@ -1941,9 +1944,10 @@ export default class GameScene extends Phaser.Scene {
     const { height } = this.scale;
     const tiles = this.serverMode ? this.serverTiles : this.spider.getTileHeight();
 
-    // Camera scrolls upward as multiplier rises — background pipe scrolls past,
-    // looks like spider is climbing up the pipe
-    const targetScrollY = this._camScrollY - (this.serverTiles + Math.floor(this._magicTileBonus)) * 10;
+    // Camera scrolls upward as multiplier rises — background scrolls past giving climbing illusion
+    // Log-scale so low multipliers get subtle scroll, high multipliers get dramatic travel
+    const mult = Math.max(1, this._serverMultiplier || 1);
+    const targetScrollY = this._camScrollY - Math.log(mult) * 700;
     this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.05);
 
     // Keep spider body tracking the camera so it stays at the same screen position
@@ -1977,13 +1981,7 @@ export default class GameScene extends Phaser.Scene {
       this._waterSurfaceY = Math.max(floorY, this._waterSurfaceY - riseRate * delta / 1000);
       this._drawPersistentWater(this._waterSurfaceY);
 
-    if (this._crashSurge && this.spider?.isAlive) {
-      const spiderScreenY = this.spider.sprite.y - this.cameras.main.scrollY;
-      if (this._waterSurfaceY <= spiderScreenY + 24) {
-        this._crashSurge = false;
-        this._pipeBurst();
-      }
-    }
+    // crash surge is handled by _surgeWaterCrash tween — no polling needed here
     } else if (!this._waterSurging) {
       this._waterBg?.clear();
       this._waterFg?.clear();
