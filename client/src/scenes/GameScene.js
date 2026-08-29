@@ -1941,12 +1941,24 @@ export default class GameScene extends Phaser.Scene {
     const { height } = this.scale;
     const tiles = this.serverMode ? this.serverTiles : this.spider.getTileHeight();
 
-    // Fixed camera — never scrolls
-    this.cameras.main.scrollY = this._camScrollY;
+    // Camera scrolls upward as multiplier rises — background pipe scrolls past,
+    // looks like spider is climbing up the pipe
+    const targetScrollY = this._camScrollY - (this.serverTiles + Math.floor(this._magicTileBonus)) * 10;
+    this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.05);
 
-    // Platform management for fixed view
-    this.platformManager.extendWorld();
-    this.platformManager.recyclePlatforms();
+    // Keep spider body tracking the camera so it stays at the same screen position
+    // (spider hangs in place while the pipe world scrolls past behind it)
+    if (this.spider?.isAlive) {
+      const spiderScreenY = this.groundY - this._camScrollY;
+      const body = this.spider.getBody();
+      this.spider.fixedY = this.cameras.main.scrollY + spiderScreenY;
+      body.setPosition(body.x, this.cameras.main.scrollY + spiderScreenY);
+      body.setVelocityY(0);
+    }
+
+    // Platform management — pass current scrollY so platforms generate above camera
+    this.platformManager.extendWorld(this.cameras.main.scrollY);
+    this.platformManager.recyclePlatforms(this.cameras.main.scrollY);
 
     // Movement + spider update
     if (this.spider?.isAlive) {

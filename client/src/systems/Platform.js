@@ -97,10 +97,12 @@ export default class PlatformManager {
     return plat;
   }
 
-  extendWorld() {
+  extendWorld(scrollY = 0) {
     const { width, height } = this.scene.scale;
+    // Generate platforms above the camera view as it scrolls upward
+    const topBuffer = scrollY - this.VIEW_RANGE;
 
-    while (this.highestY > height + 100) {
+    while (this.highestY > topBuffer) {
       const x = Phaser.Math.Between(60, width - 60);
       const y = this.highestY - this.TILE_HEIGHT;
 
@@ -115,31 +117,17 @@ export default class PlatformManager {
       this.spawnPlatform(x, y, this.PLATFORM_WIDTH, type);
       this.highestY = y;
     }
-
-    while (this.lowestY < -200) {
-      const x = Phaser.Math.Between(60, width - 60);
-      const y = this.lowestY + this.TILE_HEIGHT;
-
-      const roll = Math.random();
-      let type = PLATFORM_TYPES.NORMAL;
-      if (roll > 0.95) type = PLATFORM_TYPES.SHOCKING;
-      else if (roll > 0.90) type = PLATFORM_TYPES.FIRE;
-      else if (roll > 0.80) type = PLATFORM_TYPES.EXPLODING;
-      else if (roll > 0.70) type = PLATFORM_TYPES.SLIPPERY;
-      else if (roll > 0.55) type = PLATFORM_TYPES.BOUNCE;
-
-      this.spawnPlatform(x, y, this.PLATFORM_WIDTH, type);
-      this.lowestY = y;
-    }
   }
 
-  recyclePlatforms() {
+  recyclePlatforms(scrollY = 0) {
     const { height } = this.scene.scale;
-    const bottomLimit = height + 200;
-    const topLimit = -200;
+    // Keep platforms within one VIEW_RANGE above + below camera viewport
+    const topLimit    = scrollY - this.VIEW_RANGE - 200;
+    const bottomLimit = scrollY + height + this.VIEW_RANGE + 200;
 
     this.platforms.getChildren().forEach(p => {
-      if (p.y > bottomLimit || p.y < topLimit) {
+      if (p.isGround) return;
+      if (p.y < topLimit || p.y > bottomLimit) {
         this.disappearTimers.delete(p);
         p.destroy();
       }
