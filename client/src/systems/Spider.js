@@ -183,8 +183,9 @@ export default class Spider {
   }
 
   drawSilk() {
-    const sx = this.sprite.x;
-    const sy = this.sprite.y + this.visualSlipY;
+    const camera = this.scene.cameras.main;
+    const sx = this.sprite.x - camera.scrollX;
+    const sy = this.sprite.y - camera.scrollY + this.visualSlipY;
     this.silkGfx.clear();
     if (!this.isAlive) return;
 
@@ -228,8 +229,9 @@ export default class Spider {
   }
 
   drawSpider() {
-    const sx = this.sprite.x;
-    const sy = this.sprite.y + this.visualSlipY;
+    const camera = this.scene.cameras.main;
+    const sx = this.sprite.x - camera.scrollX;
+    const sy = this.sprite.y - camera.scrollY + this.visualSlipY;
     const t = this.scene.time.now;
     const vx = this.sprite.body?.velocity?.x ?? 0;
 

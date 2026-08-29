@@ -1878,6 +1878,9 @@ export default class GameScene extends Phaser.Scene {
     this.spider.getBody().setPosition(width / 2, this.groundY);
     this.spider.getBody().setVelocity(0, 0);
     this.spider.getBody().body.setAllowGravity(false);
+    this.spider.fixedY = this.groundY;
+    this.spider.dropOffset = 0;
+    this.spider.startDropCycle();
 
     // Reset camera to fixed position
     this.cameras.main.scrollY = this._camScrollY;
