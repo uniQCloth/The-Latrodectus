@@ -1962,14 +1962,13 @@ export default class GameScene extends Phaser.Scene {
       this._waterSurfaceY = Math.max(floorY, this._waterSurfaceY - riseRate * delta / 1000);
       this._drawPersistentWater(this._waterSurfaceY);
 
-      if (this._crashSurge && this.spider?.isAlive) {
-        const spiderScreenY = this.spider.sprite.y - this.cameras.main.scrollY;
-        if (this._waterSurfaceY <= spiderScreenY + 24) {
-          this._crashSurge = false;
-          this.spider.die('flood');
-          this._startCrashDrain();
-        }
+    if (this._crashSurge && this.spider?.isAlive) {
+      const spiderScreenY = this.spider.sprite.y - this.cameras.main.scrollY;
+      if (this._waterSurfaceY <= spiderScreenY + 24) {
+        this._crashSurge = false;
+        this._pipeBurst();
       }
+    }
     } else if (!this._waterSurging) {
       this._waterBg?.clear();
       this._waterFg?.clear();

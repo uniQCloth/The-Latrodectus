@@ -14,14 +14,21 @@ export default class Spider {
     this._dropInterval = Phaser.Math.Between(3000, 6000);
     this._dropDuration = 0;
     this._isDropping = false;
+    this._swingDir = 1;
+    this._swingAmount = 0;
+    this._swingSpeed = 0;
 
     this.externalStunned = false;
+    this._knockedOff = false;
+    this._knockTimer = 0;
+    this._knockVelocityX = 0;
+    this._knockVelocityY = 0;
 
     this.sprite = scene.physics.add.image(x, y, '__DEFAULT').setVisible(false);
     this.sprite.setCollideWorldBounds(false);
     this.sprite.setSize(36, 48);
-    this.sprite.setDragX(380);
-    this.sprite.setMaxVelocity(240, 900);
+    this.sprite.setDragX(350);
+    this.sprite.setMaxVelocity(300, 900);
 
     this.gfx = scene.add.graphics().setScrollFactor(0).setDepth(10);
     this.silkGfx = scene.add.graphics().setScrollFactor(0).setDepth(9);
@@ -62,8 +69,34 @@ export default class Spider {
     this._dropDuration = 0;
   }
 
+  knockOffScreen() {
+    this._knockedOff = true;
+    const { width, height } = this.scene.scale;
+    this._knockVelocityX = this._swingDir > 0 ? Phaser.Math.Between(400, 700) : Phaser.Math.Between(-700, -400);
+    this._knockVelocityY = Phaser.Math.Between(-200, -100);
+    this.sprite.setVelocity(this._knockVelocityX, this._knockVelocityY);
+    this.sprite.setAngle(Phaser.Math.Between(-30, 30));
+    this.scene.tweens.add({ targets: this.silkGfx, alpha: 0, duration: 200 });
+    this.scene.tweens.add({ targets: this.gfx, alpha: 0, duration: 200 });
+  }
+
+  isOffScreen() {
+    const { width, height } = this.scene.scale;
+    return this.sprite.x < -100 || this.sprite.x > width + 100 || this.sprite.y < -200 || this.sprite.y > height + 200;
+  }
+
   update() {
     if (!this.isAlive) return;
+
+    if (this._knockedOff) {
+      this.drawSpider();
+      this._knockTimer += 16;
+      if (this.isOffScreen()) {
+        this.scene.events.emit('spider:knocked');
+        this._knockedOff = false;
+      }
+      return;
+    }
 
     if (this.externalStunned) {
       this.drawSpider();
@@ -74,30 +107,40 @@ export default class Spider {
     const rightDown = this.cursors.right.isDown || this.wasd.right.isDown || this.touchRight;
 
     if (leftDown) {
-      this.sprite.setAccelerationX(-1400);
+      this._swingDir = -1;
+      this.sprite.setAccelerationX(-1600);
     } else if (rightDown) {
-      this.sprite.setAccelerationX(1400);
+      this._swingDir = 1;
+      this.sprite.setAccelerationX(1600);
     } else {
       this.sprite.setAccelerationX(0);
     }
 
+    const { width } = this.scene.scale;
     const PIPE_WALL = 68;
     const halfW = 18;
     const minX = PIPE_WALL + halfW;
-    const maxX = this.scene.scale.width - PIPE_WALL - halfW;
+    const maxX = width - PIPE_WALL - halfW;
+
     if (this.sprite.x < minX) {
       this.sprite.x = minX;
       this.sprite.setVelocityX(0);
+      this._swingDir = 1;
     } else if (this.sprite.x > maxX) {
       this.sprite.x = maxX;
       this.sprite.setVelocityX(0);
+      this._swingDir = -1;
     }
 
     if (this.currentPlatform?.platformType === PLATFORM_TYPES.SLIPPERY) {
       this.sprite.setDragX(40);
     } else {
-      this.sprite.setDragX(380);
+      this.sprite.setDragX(350);
     }
+
+    // Pendulum swing — velocity-based sway
+    const vx = this.sprite.body?.velocity?.x ?? 0;
+    this._swingAmount = Phaser.Math.Clamp(vx * 0.08, -25, 25);
 
     // Periodic drop toward water then return to center
     this._dropTimer -= 16;
@@ -109,8 +152,8 @@ export default class Spider {
     }
     if (this._isDropping) {
       this._dropDuration += 16;
-      const dropDistance = 50;
-      const dropSpeed = 350;
+      const dropDistance = 55;
+      const dropSpeed = 380;
       const progress = Math.min(this._dropDuration / dropSpeed, 1);
       if (this._dropDir === 1) {
         this.dropOffset = Phaser.Math.Linear(0, dropDistance, progress);
@@ -133,9 +176,7 @@ export default class Spider {
       this.sprite.y = targetY;
     }
 
-    if (Math.abs(this.sprite.body?.velocity?.x ?? 0) < 5 && !this._isDropping) {
-      this.visualSlipY = 0;
-    }
+    this.visualSlipY = this._swingAmount;
 
     this.drawSilk();
     this.drawSpider();
@@ -147,24 +188,35 @@ export default class Spider {
     this.silkGfx.clear();
     if (!this.isAlive) return;
 
+    // Long web string from spider up to the top of the visible pipe
     const anchorX = sx;
-    const anchorY = sy - 30;
+    const anchorY = sy - 70;
     const tipX = sx;
     const tipY = sy - 14;
-    const sway = Math.sin(this.scene.time.now * 0.002) * 3;
-    const ctrlX = sx + sway;
-    const ctrlY = anchorY + 8;
 
-    this.silkGfx.lineStyle(1.8, 0xbbbbbb, 0.5);
+    // Pendulum sway based on swing direction and velocity
+    const vx = this.sprite.body?.velocity?.x ?? 0;
+    const sway = Math.sin(this.scene.time.now * 0.003) * 5 + vx * 0.03;
+    const ctrlX = sx + sway;
+    const ctrlY = anchorY + 12;
+
+    this.silkGfx.lineStyle(2, 0xbbbbbb, 0.7);
     this.silkGfx.beginPath();
     this.silkGfx.moveTo(anchorX, anchorY);
-    for (let i = 1; i <= 10; i++) {
-      const t = i / 10;
+    for (let i = 1; i <= 14; i++) {
+      const t = i / 14;
       const mt = 1 - t;
       const x = mt * mt * anchorX + 2 * mt * t * ctrlX + t * t * tipX;
       const y = mt * mt * anchorY + 2 * mt * t * ctrlY + t * t * tipY;
       this.silkGfx.lineTo(x, y);
     }
+    this.silkGfx.strokePath();
+
+    // Web strand detail
+    this.silkGfx.lineStyle(0.8, 0xcccccc, 0.4);
+    this.silkGfx.beginPath();
+    this.silkGfx.moveTo(anchorX, anchorY + 5);
+    this.silkGfx.lineTo(tipX, tipY - 2);
     this.silkGfx.strokePath();
   }
 
@@ -175,7 +227,7 @@ export default class Spider {
     const vx = this.sprite.body?.velocity?.x ?? 0;
 
     this.gfx.setPosition(sx, sy);
-    this.gfx.setAngle(Phaser.Math.Clamp(vx * 0.055, -22, 22));
+    this.gfx.setAngle(Phaser.Math.Clamp(vx * 0.055, -25, 25));
 
     this.gfx.clear();
     const x = 0;
@@ -274,7 +326,6 @@ export default class Spider {
   }
 
   setOnGround(platform) {
-    // Spider stays at fixed Y — platform collision for horizontal movement only
     this.currentPlatform = platform;
   }
 
@@ -284,20 +335,18 @@ export default class Spider {
     this.scene.events.emit('spider:died', cause);
 
     if (cause === 'flood') {
-      this.scene.tweens.add({ targets: this.silkGfx, alpha: 0, duration: 80 });
+      this.scene.tweens.add({ targets: this.silkGfx, alpha: 0, duration: 300 });
       this.scene.tweens.add({
         targets: this.gfx,
-        y: `+=380`,
-        alpha: 0,
-        duration: 650,
-        ease: 'Power3',
+        y: `+=400`, alpha: 0,
+        duration: 800, ease: 'Power3',
       });
       this.scene.tweens.add({
         targets: this.sprite,
-        y: this.sprite.y + 380,
-        alpha: 0,
-        duration: 650,
-        ease: 'Power3',
+        y: this.sprite.y + 400,
+        x: this.sprite.x + Phaser.Math.Between(-150, 150),
+        alpha: 0, angle: 720,
+        duration: 800, ease: 'Power3',
       });
     } else {
       this.scene.tweens.add({
