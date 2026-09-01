@@ -576,6 +576,8 @@ export default class UIScene extends Phaser.Scene {
     });
 
     socket.on('round:crashed', ({ crashPoint, secretSeed, roundId }) => {
+      // Kill cashout FIRST — zero reaction window, no animation lead-up gives it away
+      this.actionBtn.disableInteractive();
       this.state = STATES.RESULT;
       sound.stopGameBeat(0.8); // stop beat fast on crash — silence before the flood sound
       this.enterResultUI(crashPoint, secretSeed, roundId);
@@ -693,32 +695,36 @@ export default class UIScene extends Phaser.Scene {
   }
 
   enterResultUI(crashPoint, secretSeed, roundId) {
-    const color = crashPoint <= 1.5 ? '#ff2200' : crashPoint <= 5 ? '#ff8800' : '#ffd700';
-    // If player cashed out, push crash text lower so cashout text stays readable above it
-    const crashY = this.cashedOut ? this.scale.height * 0.56 : this.scale.height * 0.50;
-    this.crashOverlay
-      .setText(`CRASHED!\n${crashPoint.toFixed(2)}×`)
-      .setColor(color)
-      .setY(crashY)
-      .setAlpha(1);
-
-    this.tweens.add({
-      targets: this.crashOverlay,
-      scaleX: { from: 1.3, to: 1 },
-      scaleY: { from: 1.3, to: 1 },
-      duration: 300, ease: 'Back.out',
-    });
-
-    this._bettingMs = 0; // stop countdown
+    this._bettingMs = 0;
     this.countdownBanner.setAlpha(0);
     this.roundInfo.setText(
       `Round #${roundId} CRASHED ${crashPoint.toFixed(2)}× | Seed: ${secretSeed.slice(0, 10)}…`
     );
 
+    // Fire the water surge FIRST — water must visibly hit the spider before the overlay appears
     this.scene.get('GameScene')?.events.emit('server:crashed', { crashPoint });
 
-    this.time.delayedCall(2500, () => {
-      this.tweens.add({ targets: this.crashOverlay, alpha: 0, duration: 400 });
+    // Show crash overlay 300ms later (water hits spider at ~180ms, spider dies, THEN text pops)
+    const color = crashPoint <= 1.5 ? '#ff2200' : crashPoint <= 5 ? '#ff8800' : '#ffd700';
+    const crashY = this.cashedOut ? this.scale.height * 0.56 : this.scale.height * 0.50;
+    this.time.delayedCall(300, () => {
+      this.crashOverlay
+        .setText(`CRASHED!\n${crashPoint.toFixed(2)}×`)
+        .setColor(color)
+        .setY(crashY)
+        .setAlpha(0);
+
+      this.tweens.add({
+        targets: this.crashOverlay,
+        alpha: 1,
+        scaleX: { from: 1.3, to: 1 },
+        scaleY: { from: 1.3, to: 1 },
+        duration: 300, ease: 'Back.out',
+      });
+
+      this.time.delayedCall(2500, () => {
+        this.tweens.add({ targets: this.crashOverlay, alpha: 0, duration: 400 });
+      });
     });
   }
 

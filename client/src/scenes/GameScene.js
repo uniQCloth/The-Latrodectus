@@ -39,6 +39,7 @@ export default class GameScene extends Phaser.Scene {
     this._waterSurfaceY        = null;  // screen-Y of water surface; null = off
     this._waterSurging         = false; // true only during post-crash drain animation
     this._crashSurge           = false; // true while water is rushing up after a crash
+    this._waterProxy           = { y: 0 }; // persistent tween target — allows killTweensOf in reset
 
     // ── Pipe geometry ─────────────────────────────────────────────────────
     this.drawWorldBackground();
@@ -1544,25 +1545,40 @@ export default class GameScene extends Phaser.Scene {
     const { bg, fg } = this._waterColorForMultiplier(mult);
 
     this._waterBg.clear();
-    this._waterBg.fillStyle(bg, 0.35);
-    this._waterBg.fillRect(PIPE_WALL, surfaceY, innerW, height - surfaceY + 4);
-
     this._waterFg.clear();
     if (surfaceY >= height) return;
-    this._waterFg.fillStyle(fg, 0.28);
-    this._waterFg.beginPath();
-    let first = true;
-    for (let xi = 0; xi <= 12; xi++) {
-      const wx = PIPE_WALL + (innerW / 12) * xi;
-      const wy = surfaceY - 10 + Math.sin(t + xi * 0.42) * 7 + Math.cos(t * 0.75 + xi * 0.28) * 4;
-      if (first) { this._waterFg.moveTo(wx, wy); first = false; }
-      else this._waterFg.lineTo(wx, wy);
+
+    // Wave oscillates around surfaceY
+    const wavePts = [];
+    for (let xi = 0; xi <= 20; xi++) {
+      wavePts.push({
+        x: PIPE_WALL + (innerW / 20) * xi,
+        y: surfaceY + Math.sin(t + xi * 0.42) * 8 + Math.cos(t * 0.75 + xi * 0.28) * 4,
+      });
     }
+
+    // Solid body starts at the HIGHEST wave crest — no gap, no floating line
+    let minWaveY = wavePts[0].y;
+    for (let i = 1; i < wavePts.length; i++) if (wavePts[i].y < minWaveY) minWaveY = wavePts[i].y;
+
+    this._waterBg.fillStyle(bg, 0.72);
+    this._waterBg.fillRect(PIPE_WALL, minWaveY, innerW, height - minWaveY + 4);
+
+    // Wave polygon drawn on top of body — troughs appear slightly lighter, crests fully opaque
+    this._waterFg.fillStyle(fg, 0.5);
+    this._waterFg.beginPath();
+    this._waterFg.moveTo(wavePts[0].x, wavePts[0].y);
+    for (let i = 1; i < wavePts.length; i++) this._waterFg.lineTo(wavePts[i].x, wavePts[i].y);
     this._waterFg.lineTo(PIPE_WALL + innerW, height + 4);
     this._waterFg.lineTo(PIPE_WALL, height + 4);
     this._waterFg.closePath(); this._waterFg.fillPath();
-    this._waterFg.fillStyle(0xffffff, 0.15);
-    this._waterFg.fillRect(PIPE_WALL, surfaceY - 4, innerW, 7);
+
+    // Foam bubbles on wave crests
+    this._waterFg.fillStyle(0xffffff, 0.7);
+    for (let i = 0; i < wavePts.length; i++) {
+      const pop = Math.sin(t * 2.2 + i * 1.1);
+      if (pop > 0.25) this._waterFg.fillCircle(wavePts[i].x, wavePts[i].y - 1, 1.2 + pop * 2.8);
+    }
   }
 
   // ── Crash surge — water rushes up and fills the pipe ─────────────────────
@@ -1578,18 +1594,18 @@ export default class GameScene extends Phaser.Scene {
 
     const startY = this._waterSurfaceY ?? height * 0.82;
     const spiderScreenY = this.groundY - this._camScrollY;
-    const proxy  = { y: startY };
-    // Capture gen so the per-frame draw stops the moment this surge is invalidated
-    const myGen  = floodGen;
-    const draw   = () => {
+    // Use the persistent proxy so resetSpiderToGround can kill this tween directly
+    this._waterProxy.y = startY;
+    const myGen = floodGen;
+    const draw  = () => {
       if (this._floodGen !== myGen) return;
-      this._waterSurfaceY = proxy.y;
-      this._drawPersistentWater(proxy.y);
+      this._waterSurfaceY = this._waterProxy.y;
+      this._drawPersistentWater(this._waterProxy.y);
     };
 
-    // Phase 1 — surge to spider's feet (fast, Power4)
+    // Phase 1 — surge to spider's feet (very fast — water must visually hit before crash overlay)
     this.tweens.add({
-      targets: proxy, y: spiderScreenY + 10, duration: 420, ease: 'Power4',
+      targets: this._waterProxy, y: spiderScreenY + 10, duration: 180, ease: 'Power4',
       onUpdate: draw,
       onComplete: () => {
         if (this._floodGen !== floodGen) return;
@@ -1611,7 +1627,7 @@ export default class GameScene extends Phaser.Scene {
 
         // Phase 2 — fill rest of pipe above spider
         this.tweens.add({
-          targets: proxy, y: -80, duration: 550, ease: 'Power3',
+          targets: this._waterProxy, y: -80, duration: 550, ease: 'Power3',
           onUpdate: draw,
           onComplete: () => {
             if (this._floodGen !== floodGen) return;
@@ -1636,9 +1652,10 @@ export default class GameScene extends Phaser.Scene {
             this.time.delayedCall(2200, () => {
               if (this._floodGen !== floodGen) return;
               this.tweens.add({
-                targets: proxy, y: height + 110, duration: 900, ease: 'Power2',
+                targets: this._waterProxy, y: height + 110, duration: 900, ease: 'Power2',
                 onUpdate: draw,
                 onComplete: () => {
+                  if (this._floodGen !== floodGen) return; // guard: don't clobber next round
                   this._waterBg.clear().setDepth(6);
                   this._waterFg.clear().setDepth(7);
                   this._waterSurfaceY = null;
@@ -1856,9 +1873,10 @@ export default class GameScene extends Phaser.Scene {
     this._waterFg?.clear();
     this._waterBg?.setDepth(6);
     this._waterFg?.setDepth(7);
-    this._waterSurfaceY = null;
-    this._waterSurging  = false;
-    this._crashSurge    = false;
+    this._waterSurfaceY    = null;
+    this._waterSurging     = false;
+    this._crashSurge       = false;
+    this._serverMultiplier = 1;   // prevent stale mult from rising water during betting
 
     // Flash white inside pipe if crash flood was mid-animation (pipe was full of blue)
     if (wasFloodSurging) this._flashPipeWhite();
