@@ -37,7 +37,7 @@ class WithdrawalProcessor {
     }
   }
 
-  async process({ playerId, playerBalance, toAddress, amount }) {
+  async process({ playerId, playerBalance, bonusPending = 0, toAddress, amount }) {
     amount = parseFloat(amount);
 
     // ── Validation ────────────────────────────────────────────────────────────
@@ -64,7 +64,15 @@ class WithdrawalProcessor {
       };
     }
 
-    if (amount > playerBalance) {
+    // Signup bonus play-through check: locked funds are not withdrawable
+    const withdrawable = Math.max(0, parseFloat((playerBalance - bonusPending).toFixed(2)));
+    if (amount > withdrawable) {
+      if (bonusPending > 0) {
+        return {
+          ok: false,
+          error: `Signup bonus locked — wager $${bonusPending.toFixed(2)} more to unlock it. Available to withdraw: $${withdrawable.toFixed(2)} USDT`,
+        };
+      }
       return {
         ok: false,
         error: `Insufficient balance ($${playerBalance.toFixed(2)} USDT available)`,

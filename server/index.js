@@ -341,7 +341,7 @@ app.post('/payment/deposit', async (req, res) => {
   if (result.ok) {
     player.balance = result.newBalance;
     // Push updated balance to client via socket
-    io.to(socketId).emit('wallet:balance', { balance: result.newBalance });
+    io.to(socketId).emit('wallet:balance', { balance: result.newBalance, bonusPending: player.bonusPending || 0 });
     io.to(socketId).emit('wallet:deposit:confirmed', {
       amount: result.amountUSDT,
       newBalance: result.newBalance,
@@ -372,13 +372,14 @@ app.post('/payment/withdraw', async (req, res) => {
   const result = await withdrawalProcessor.process({
     playerId: player.playerId,
     playerBalance: player.balance,
+    bonusPending: player.bonusPending || 0,
     toAddress,
     amount: parseFloat(amount),
   });
 
   if (result.ok) {
     player.balance = result.newBalance;
-    io.to(socketId).emit('wallet:balance', { balance: result.newBalance });
+    io.to(socketId).emit('wallet:balance', { balance: result.newBalance, bonusPending: player.bonusPending || 0 });
     io.to(socketId).emit('wallet:withdraw:confirmed', result);
   }
 
@@ -551,7 +552,7 @@ io.on('connection', async (socket) => {
   socket.emit('game:state', roundManager.getState());
 
   const player = roundManager.getPlayer(socket.id);
-  socket.emit('wallet:balance', { balance: player?.balance ?? 1000 });
+  socket.emit('wallet:balance', { balance: player?.balance ?? 1000, bonusPending: player?.bonusPending ?? 0 });
 
   const history = await roundManager.getHistory(10);
   socket.emit('history:update', history);
@@ -593,7 +594,8 @@ io.on('connection', async (socket) => {
     const result = roundManager.placeBet(socket.id, amount, autoCashout);
     socket.emit('bet:result', result);
     if (result.ok) {
-      socket.emit('wallet:balance', { balance: result.balance });
+      const p = roundManager.getPlayer(socket.id);
+      socket.emit('wallet:balance', { balance: result.balance, bonusPending: p?.bonusPending ?? 0 });
       io.emit('bets:update', { count: roundManager.bets.size });
     }
   });
@@ -601,7 +603,10 @@ io.on('connection', async (socket) => {
   socket.on('bet:cancel', () => {
     const result = roundManager.cancelBet(socket.id);
     socket.emit('bet:cancel:result', result);
-    if (result.ok) socket.emit('wallet:balance', { balance: result.balance });
+    if (result.ok) {
+      const p = roundManager.getPlayer(socket.id);
+      socket.emit('wallet:balance', { balance: result.balance, bonusPending: p?.bonusPending ?? 0 });
+    }
   });
 
   socket.on('cashout', () => {

@@ -28,15 +28,16 @@ class RoundManager {
   // ─── Player Management ────────────────────────────────────────────────────
 
   async addPlayer(socketId, username, uuid = null) {
-    const playerData = { username: username || null, balance: 1000.00, playerId: null, uuid };
+    const playerData = { username: username || null, balance: 1000.00, bonusPending: 0, playerId: null, uuid };
     this.players.set(socketId, playerData);
 
     // Restore balance from DB for returning players
     if (db.isEnabled() && uuid && username) {
       const res = await queries.upsertPlayer(uuid, username);
       if (res?.rows?.[0]) {
-        playerData.playerId = res.rows[0].id;
-        playerData.balance  = parseFloat(res.rows[0].balance);
+        playerData.playerId    = res.rows[0].id;
+        playerData.balance     = parseFloat(res.rows[0].balance);
+        playerData.bonusPending = parseFloat(res.rows[0].bonus_pending || 0);
       }
     }
   }
@@ -247,6 +248,11 @@ class RoundManager {
         }
         if (player?.playerId) {
           queries.updateBalance(player.playerId, player.balance, bet.amount, payout);
+          // Burn signup bonus play-through requirement for every completed bet
+          if (player.bonusPending > 0) {
+            queries.burnBonusPending(player.playerId, bet.amount).catch(() => {});
+            player.bonusPending = Math.max(0, parseFloat((player.bonusPending - bet.amount).toFixed(2)));
+          }
         }
       }
     });

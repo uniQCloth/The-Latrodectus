@@ -30,6 +30,10 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='players' AND column_name='is_admin') THEN
     ALTER TABLE players ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE;
   END IF;
+  -- Signup bonus play-through tracker: amount of bonus still locked (0 = fully unlocked)
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='players' AND column_name='bonus_pending') THEN
+    ALTER TABLE players ADD COLUMN bonus_pending DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+  END IF;
 END $$;
 
 -- ── Rounds ───────────────────────────────────────────────────────────────────

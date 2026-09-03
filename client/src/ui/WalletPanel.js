@@ -110,15 +110,20 @@ const CSS = `
 
 export default class WalletPanel {
   constructor(scene, socketId, onBalanceUpdate) {
-    this.scene       = scene;
-    this.socketId    = socketId;
+    this.scene           = scene;
+    this.socketId        = socketId;
     this.onBalanceUpdate = onBalanceUpdate;
-    this.visible     = false;
-    this.depositInfo = null;
-    this.tab         = 'deposit';
-    this._el         = null;
-    this._styleEl    = null;
+    this.visible         = false;
+    this.depositInfo     = null;
+    this.bonusPending    = 0;
+    this.tab             = 'deposit';
+    this._el             = null;
+    this._styleEl        = null;
     this._fetchDepositInfo();
+  }
+
+  setBonusPending(amount) {
+    this.bonusPending = amount || 0;
   }
 
   async _fetchDepositInfo() {
@@ -285,7 +290,13 @@ export default class WalletPanel {
   // ── WITHDRAW ───────────────────────────────────────────────────────────────
 
   _withdrawHTML() {
+    const bonusNotice = this.bonusPending > 0 ? `
+      <div class="wp-warning" style="color:#ffaa00;background:#1a1000;border-color:#443300;">
+        🎁 <strong>Signup bonus active</strong> — wager <strong>$${this.bonusPending.toFixed(2)} more</strong> to unlock your $5 bonus for withdrawal.
+      </div>` : '';
+
     return `
+      ${bonusNotice}
       <div class="wp-section">
         <span class="wp-label">① Your Ethereum wallet address</span>
         <input class="wp-input" id="wp-w-addr" placeholder="0x… your MetaMask address" />

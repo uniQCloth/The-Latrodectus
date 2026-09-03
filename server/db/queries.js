@@ -107,10 +107,17 @@ async function getLeaderboard() {
 
 async function createAuthPlayer(uuid, email, passwordHash, username) {
   return db.query(
-    `INSERT INTO players (uuid, email, password_hash, username, age_verified)
-     VALUES ($1, $2, $3, $4, TRUE)
-     RETURNING id, uuid, username, balance`,
+    `INSERT INTO players (uuid, email, password_hash, username, age_verified, balance, bonus_pending)
+     VALUES ($1, $2, $3, $4, TRUE, 5.00, 5.00)
+     RETURNING id, uuid, username, balance, bonus_pending`,
     [uuid, email.toLowerCase(), passwordHash, username]
+  );
+}
+
+async function burnBonusPending(playerId, wagered) {
+  return db.query(
+    `UPDATE players SET bonus_pending = GREATEST(0, bonus_pending - $2) WHERE id = $1`,
+    [playerId, wagered]
   );
 }
 
@@ -132,5 +139,5 @@ module.exports = {
   upsertPlayer, getPlayer, updateBalance,
   insertRound, closeRound, getRecentRounds,
   insertBet, settleBet, getPlayerBetHistory, getLeaderboard,
-  createAuthPlayer, getPlayerByEmail, getPlayerByUsername,
+  createAuthPlayer, getPlayerByEmail, getPlayerByUsername, burnBonusPending,
 };

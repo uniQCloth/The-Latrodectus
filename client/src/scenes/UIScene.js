@@ -21,6 +21,7 @@ export default class UIScene extends Phaser.Scene {
     this.betAmount = 0.50;
     this.autoCashoutVal = null;
     this.balance = 1000.00;
+    this.bonusPending = 0;
     this.currentMultiplier = 1.00;
     this.roundId = null;
     this._betInputEl = null;
@@ -616,8 +617,10 @@ export default class UIScene extends Phaser.Scene {
       }
     });
 
-    socket.on('wallet:balance', ({ balance }) => {
+    socket.on('wallet:balance', ({ balance, bonusPending = 0 }) => {
       this.balance = balance;
+      this.bonusPending = bonusPending;
+      if (this.walletPanel) this.walletPanel.setBonusPending(bonusPending);
       this.refreshBalance();
     });
 
@@ -755,7 +758,8 @@ export default class UIScene extends Phaser.Scene {
   }
 
   refreshBalance() {
-    this.balanceText.setText(`💰 $${this.balance.toFixed(2)}`);
+    const lock = this.bonusPending > 0 ? ` 🔒$${this.bonusPending.toFixed(2)}` : '';
+    this.balanceText.setText(`💰 $${this.balance.toFixed(2)}${lock}`);
   }
 
   refreshBetDisplay() {
