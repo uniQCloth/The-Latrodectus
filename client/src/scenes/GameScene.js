@@ -1918,6 +1918,9 @@ export default class GameScene extends Phaser.Scene {
     // Reset warning timer for the new round
     this._floodWarnActive = false;
     this._floodWarnTimer  = Phaser.Math.Between(14000, 28000);
+
+    // Reset offline flood scheduler if active (clears any residual water graphics)
+    if (this.floodScheduler) this.floodScheduler.reset();
     this._bathroomTimer   = Phaser.Math.Between(12000, 26000);
 
     // Reset silk slip state

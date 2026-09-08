@@ -318,11 +318,70 @@ export default class FloodScheduler {
     });
 
     this.spider.die('flood');
+
+    // Drain water back down and destroy graphics so the next round starts clean
+    this._drainFlood();
+  }
+
+  _drainFlood() {
+    if (!this.floodGraphic) return;
+    const { width, height } = this.scene.scale;
+    const camera = this.scene.cameras.main;
+    const proxy = { y: this.floodY };
+    const offScreen = camera.scrollY + height + 80;
+
+    this.scene.tweens.add({
+      targets: proxy,
+      y: offScreen,
+      duration: 1100,
+      delay: 300,
+      ease: 'Sine.easeIn',
+      onUpdate: () => {
+        const screenY = proxy.y - camera.scrollY;
+        if (this.floodGraphic) {
+          this.floodGraphic.clear();
+          this.floodGraphic.fillStyle(0x0044cc, 0.75);
+          this.floodGraphic.fillRect(0, screenY, width, height - screenY + 200);
+        }
+        if (this.foamGraphic) {
+          this.foamGraphic.clear();
+          const t = this.scene.time.now * 0.003;
+          this.foamGraphic.lineStyle(6, 0x66ccff, 0.9);
+          this.foamGraphic.beginPath();
+          this.foamGraphic.moveTo(0, screenY);
+          for (let x = 0; x <= width; x += 10) {
+            this.foamGraphic.lineTo(x, screenY + Math.sin(x * 0.05 + t) * 8);
+          }
+          this.foamGraphic.strokePath();
+        }
+      },
+      onComplete: () => {
+        if (this.floodGraphic) { this.floodGraphic.destroy(); this.floodGraphic = null; }
+        if (this.foamGraphic)  { this.foamGraphic.destroy();  this.foamGraphic  = null; }
+      },
+    });
   }
 
   scheduleNextFlood() {
     // After any event (real or false alarm), next warning fires 60-120s later
     const delay = Phaser.Math.Between(60000, 120000);
+    this.nextFloodTimer = this.scene.time.delayedCall(delay, () => this.startWarning(), [], this);
+  }
+
+  // Called by GameScene.resetSpiderToGround() to wipe all flood state for the next round.
+  reset() {
+    this.active = false;
+    this.floodY  = null;
+    this.riseSpeed = 90;
+    this.warningShown = false;
+    this._isFalseAlarm = false;
+
+    if (this.nextFloodTimer) { this.nextFloodTimer.remove(); this.nextFloodTimer = null; }
+    if (this.floodGraphic)   { this.floodGraphic.destroy();  this.floodGraphic  = null; }
+    if (this.foamGraphic)    { this.foamGraphic.destroy();   this.foamGraphic   = null; }
+    if (this.warningText)    { this.warningText.destroy();   this.warningText   = null; }
+
+    const delay = Phaser.Math.Between(40000, 80000);
     this.nextFloodTimer = this.scene.time.delayedCall(delay, () => this.startWarning(), [], this);
   }
 
